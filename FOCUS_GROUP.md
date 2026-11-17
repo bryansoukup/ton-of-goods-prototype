@@ -53,3 +53,42 @@ Balance bugs fixed during the round: auto-pack used to strip all food from the c
 3. Each Haul button states its consequence: how many loads it leaves behind, where, and the theft risk.
 4. **Burnable supplies:** many cards can be used up for an effect (coffee or dried fruit = stamina, bacon feast, sell pans, rope & pulley for extra loads on the Stairs), and every burn costs weight you need for the Mounties. This is the deck's core tension.
 5. Bribe odds shown, plus a live Mountie preview at the summit.
+
+## Round 2: retest after the round 1 fixes
+
+Same method: 4 persona bots × 400 seeds, plus Playwright tapping through the real UI (phone, desktop, and a full careful run that reaches the win screen).
+
+### Persona verdicts
+- **Casual (first 2 minutes):** Day 1 now fits a phone screen. A coach box says "tap a Haul button at the bottom," and the dock packs for you. One tap ends day 1, so this is fixed.
+- **Deckbuilder fan:** burning cards for a boost against the Mounties' weight count makes the deck matter. With auto-pack still placing the tarp and rifle smartly, though, a default-tapping casual won 58% vs the optimizer's 46%. *Decisions still didn't beat defaults.*
+- **Strategy/history fan:** liked the consequence lines under the Haul buttons. The Sheep Camp event gave the con away in its own text ("Soapy Smith's gang runs this con"), so it wasn't a real choice.
+- **Streamer:** avalanche moments land. Stale toasts piled up and covered the screen after a bad night, which killed the moment. A run could also end at the Mounties with no move left (short on weight, no cash), which felt like a dead end after 25 minutes.
+
+### Round 2 fixes
+1. **Auto-pack no longer places the tarp or rifle for you.** That's your decision now, and a coach tip warns when your food up the trail is uncovered while the tarp sits with you. Result: careful play wins far more than default tapping (46-48% vs 18% before the balance pass below).
+2. Sheep Camp became a historically grounded **miners' court** dilemma (−2 stamina vs theft halved for 10 days). Soapy Smith's "telegraph office" moved to a separate Dyea event with real uncertainty (25% it actually works).
+3. Toasts capped at 3 and cleared on each action.
+4. **No dead ends:** a new "Pack for others" action trades a day and 3 stamina for $10, and the Mounties offer "Not yet" so you can earn the shortfall before winter.
+5. Avalanches made less frequent (5 per run in one test → about 1.3), with the snow meter still telegraphing them.
+6. Balance: the pass closes after day 36 (was 40). Summit quitters cost $25 per 50 lb. Characters rebalanced so careful play wins about the same with each: Greenhorn $280/11 stamina (marked as the first-run pick), Sourdough $140/12 stamina/+1 load, Partners $130/+2 loads/eat double.
+
+## Round 3: final retest (current build)
+
+| Persona (simulated) | Win rate | Avg days | Decisions per run | Main way to lose |
+|---|---|---|---|---|
+| Strategy/history fan (careful, protects caches, works when short) | 82% | 32 | ~49 | Short at the summit |
+| Roguelite/deckbuilder fan (aggressive upgrades, burns cards) | 58% | 35 | ~59 | Winter (overspends days) |
+| Casual (taps Haul, takes the first option) | 39% | 30 | ~41 | Short at the summit, or a failed bribe |
+| Streamer (fast, gambles, always bribes) | 26% | 36 | ~67 | A failed bribe (about 1 in 3 works, and it's labeled) |
+
+UI check: 3 Playwright runs (phone, desktop, careful-to-win), 0 console errors. Each run reaches the end screen, and "One more run" returns to character select.
+
+Run length: about 30-36 in-game days and 40-65 taps on decisions, an estimated 10-15 minutes for a human reading the events. On target.
+
+### Still needs real human playtesting (bots can't judge these)
+- **Is hauling fun after day 10?** Bots don't get bored. The middle legs could feel repetitive. Watch for players spamming the Haul button without reading.
+- **Do the risk percentages read as "my fault" or "dice"?** The design assumes the telegraphing works.
+- **Difficulty for real first-timers.** Bots know every rule. Humans will probably sit between "casual" (39%) and "careful" (82%), but a first run could be much lower.
+- **Is burning cards tempting or ignored?** Bots burn only by rule.
+- **"One more run" pull.** There's no meta-progression yet: only 3 characters, seeds and a best score.
+- Phone ergonomics with real thumbs: the +/− buttons are small.

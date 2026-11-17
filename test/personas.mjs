@@ -33,7 +33,7 @@ export const PERSONAS = {
   },
   casual: { // casual browser: taps the big button, takes defaults
     char: 'greenhorn', shop: [], smartGear: false, restBuffer: 0, reserve: 0,
-    event: (s, ev, opts) => null, // first enabled option
+    event: (s, ev, opts) => null, noWork: true, // first enabled option
     sleep: () => 'origin', guard: false, tram: false,
   },
   streamer: { // streamer: fast, risky, gambles for clips
@@ -58,7 +58,8 @@ export function playRun(seed, pk, maxSteps = 600) {
       if (ev.key === 'mountie') {
         const ok = ev.options.map((o, i) => [o, i]).filter(([o]) => o.ok !== false);
         const pref = p.event(s, ev) || (ok.find(([o]) => o.v === 'buy') ? 'buy' : ok.find(([o]) => o.v === 'later') ? 'later' : ok.find(([o]) => o.v === 'bribe') ? 'bribe' : 'quit');
-        v = ok.find(([o]) => o.v === pref) ? pref : ok.find(([o]) => o.v === 'buy') ? 'buy' : ok.find(([o]) => o.v === 'bribe') ? 'bribe' : 'quit';
+        const behind = G.inspection(s).behind; const pref2 = (pref === 'later' && !behind) ? (ok.find(([o]) => o.v === 'bribe') ? 'bribe' : 'quit') : pref;
+        v = ok.find(([o]) => o.v === pref2) ? pref2 : ok.find(([o]) => o.v === 'buy') ? 'buy' : ok.find(([o]) => o.v === 'bribe') ? 'bribe' : 'quit';
       }
       let i = ev.options.findIndex(o => o.v === v && o.ok !== false);
       if (i < 0) i = ev.options.findIndex(o => o.ok !== false);
@@ -67,7 +68,7 @@ export function playRun(seed, pk, maxSteps = 600) {
       continue;
     }
     const target = lowestCamp(s);
-    if (s.pos === 4 && target === 4) { G.act(s, { type: 'mounties' }); continue; }
+    if (s.pos === 4 && target === 4) { const x = G.inspection(s); const need = Math.ceil(Math.max(x.shortLb, x.shortFood) / 50) * 25 + x.missing.length * 30; if (need > s.cash && s.day < G.DEADLINE && !p.noWork && s.stamina >= 3) { G.act(s, { type: 'work' }); continue; } if (need > s.cash && s.stamina < 3 && s.day < G.DEADLINE && !p.noWork) { G.act(s, { type: 'rest' }); continue; } G.act(s, { type: 'mounties' }); continue; }
     if (s.pos === 4 && s._wentBack > 2) { G.act(s, { type: 'mounties' }); continue; }
     if (s.pos > target) { if (s.stamina >= 1) G.act(s, { type: 'back' }); else G.act(s, { type: 'rest' }); continue; }
     if (s.pos < target) { if (s.stamina >= 1) G.act(s, { type: 'up' }); else G.act(s, { type: 'rest' }); continue; }
@@ -90,7 +91,7 @@ export function playRun(seed, pk, maxSteps = 600) {
   return { s, trace, score: G.score(s) };
 }
 
-if ((process.argv[1] || '').endsWith('personas.mjs')) {
+if (typeof process !== 'undefined' && (process.argv[1] || '').endsWith('personas.mjs')) {
   const N = +(process.argv[2] || 300);
   for (const pk of Object.keys(PERSONAS)) {
     const res = []; for (let i = 1; i <= N; i++) res.push(playRun(i * 7919, pk));

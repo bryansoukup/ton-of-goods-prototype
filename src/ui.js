@@ -8,12 +8,12 @@ const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)
 function save() { if (s && !s.over) store.set('tog_run', s); else store.set('tog_run', null); }
 function esc(t) { return String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
 
-function toast(msg, tone = '') { const d = document.createElement('div'); d.className = 'toast ' + tone; d.textContent = msg; toasts.appendChild(d); setTimeout(() => d.remove(), tone === 'bad' ? 5200 : 3500); }
+function toast(msg, tone = '') { while (toasts.children.length >= 3) toasts.firstChild.remove(); const d = document.createElement('div'); d.className = 'toast ' + tone; d.textContent = msg; toasts.appendChild(d); setTimeout(() => d.remove(), tone === 'bad' ? 5200 : 3500); }
 
 function doAct(a) {
   const prevDay = s.day;
   G.act(s, a);
-  pack = {};
+  pack = {}; toasts.innerHTML = '';
   for (const f of s.flash) toast(f.msg, f.tone);
   if (s.day !== prevDay) { for (const f of s.flash) { const m = f.msg.match(/at ([A-Z][a-zA-Z ]+?)[:!.]/); const i = m ? G.CAMPS.findIndex(c => c.name === m[1].trim()) : -1; if (i >= 0) shakeCamp(i); } }
   save(); render();
@@ -158,6 +158,7 @@ function render() {
   const more = [];
   if (s.pos === 4) more.push(`<button class="primary" id="mounties">Face the Mounties</button>`);
   more.push(`<button id="rest">Rest a day (+3 💪)</button>`);
+  if (has('work')) more.push(`<button id="work" ${has('work').ok ? '' : 'disabled'}>Pack for others: +$10 (day, 3 💪)</button>`);
   if (has('dig')) more.push(`<button id="dig" ${has('dig').ok ? '' : 'disabled'}>⛏️ Dig out (day, 2 💪)</button>`);
   if (has('back')) more.push(`<button id="back" ${has('back').ok ? '' : 'disabled'}>↓ Walk down (1 💪)</button>`);
   if (has('up') && s.pos < 4) more.push(`<button id="up" ${has('up').ok ? '' : 'disabled'}>↑ Walk up empty (1 💪)</button>`);
@@ -187,6 +188,7 @@ function render() {
   on('mounties2', () => doAct({ type: 'mounties' }));
   app.querySelectorAll('[data-u]').forEach(b => b.onclick = () => doAct({ type: 'use', k: b.dataset.u }));
   on('rest', () => doAct({ type: 'rest' }));
+  on('work', () => doAct({ type: 'work' }));
   on('dig', () => doAct({ type: 'dig' }));
   on('back', () => doAct({ type: 'back' }));
   on('up', () => doAct({ type: 'up' }));

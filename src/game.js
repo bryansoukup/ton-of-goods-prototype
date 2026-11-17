@@ -14,7 +14,7 @@ export const LEGS = [
   { name: 'Long Hill', loads: 5, cost: 3, snowy: true },
   { name: 'The Golden Stairs', loads: 4, cost: 4, snowy: true, stairs: true },
 ];
-export const DEADLINE = 40;
+export const DEADLINE = 36;
 
 export const DEFS = {
   flour: { name: 'Flour', kind: 'food', icon: '🌾', text: 'Food.' },
@@ -40,9 +40,9 @@ const DECK = { flour: 8, bacon: 4, beans: 4, oats: 2, fruit: 2, coffee: 2, tent:
 const PRIO = { flour: 1, beans: 1, oats: 1, bacon: 1, fruit: 2, hardware: 2, pans: 2, tools: 3, tobacco: 3, medicine: 4, rifle: 5, tarp: 6, woolens: 7, coffee: 0, snowshoes: 0, tent: 9, stove: 9 };
 
 export const CHARACTERS = {
-  greenhorn: { name: 'The Greenhorn', cash: 220, stamina: 10, text: '$220 cash, 10 stamina. Money solves problems.' },
+  greenhorn: { name: 'The Greenhorn', cash: 280, stamina: 11, text: 'Recommended first run. $280 cash, 11 stamina. Money solves problems.' },
   sourdough: { name: 'The Sourdough', cash: 140, stamina: 12, text: '$140 cash, 12 stamina, +1 stamina a night, +1 load every haul, sees weather 2 days ahead.' },
-  partners: { name: 'Two Partners', cash: 180, stamina: 10, text: '$180 cash, +2 loads every haul, but eat twice as much.' },
+  partners: { name: 'Two Partners', cash: 130, stamina: 10, text: '$130 cash, +2 loads every haul, but eat twice as much.' },
 };
 
 // ---------- RNG ----------
@@ -110,7 +110,7 @@ export function theftRisk(s, i) {
   if (s.vigil && s.day <= s.vigil) p *= 0.5;
   return Math.round(p * 100) / 100;
 }
-export function avalancheRisk(s, i) { if (!CAMPS[i].aval) return 0; return Math.min(0.3, Math.max(0, (s.snowLoad[i] - 3) * 0.04)); }
+export function avalancheRisk(s, i) { if (!CAMPS[i].aval) return 0; return Math.min(0.24, Math.max(0, (s.snowLoad[i] - 4) * 0.04)); }
 export function stormExposed(s, i) { return i !== s.pos && s.camps[i].cards.length > 0 && !campHas(s, i, 'tarp'); }
 
 export function autoPack(s, sleep = 'origin', smart = false) {
@@ -150,6 +150,7 @@ export function legal(s) {
   const here = s.camps[s.pos];
   if (s.pos < LEGS.length && here.cards.length && capacity(s) > 0 && s.stamina >= haulCost(s)) a.push({ type: 'haul', ok: true });
   a.push({ type: 'rest', ok: true });
+  a.push({ type: 'work', ok: s.stamina >= 3 });
   if (s.pos > 0) a.push({ type: 'back', ok: s.stamina >= 1 });
   if (s.pos < LEGS.length) a.push({ type: 'up', ok: s.stamina >= 1 });
   if (here.buried.length) a.push({ type: 'dig', ok: s.stamina >= 2 });
@@ -194,6 +195,7 @@ export function act(s, a) {
       return endDay(s);
     }
     case 'rest': { s.stamina = Math.min(s.maxStamina, s.stamina + 3); if (s.sick) { s.sick = false; log(s, 'The fever breaks.', 'good'); } log(s, 'You rest a day at ' + CAMPS[s.pos].name + '.'); return endDay(s, true); }
+    case 'work': { if (s.stamina < 3) return s; s.stamina -= 3; s.cash += 10; log(s, `You pack for another outfit at ${CAMPS[s.pos].name} for a day: +$10.`); return endDay(s); }
     case 'back': if (s.pos > 0 && s.stamina >= 1) { s.pos--; s.stamina--; log(s, `You hike down to ${CAMPS[s.pos].name} (1 stamina).`); } return s;
     case 'up': if (s.pos < 4 && s.stamina >= 1) { s.pos++; s.stamina--; log(s, `You climb empty-handed to ${CAMPS[s.pos].name} (1 stamina).`); } return s;
     case 'dig': { const c = s.camps[s.pos]; if (!c.buried.length || s.stamina < 2) return s; c.cards.push(...c.buried); log(s, `You dig out ${c.buried.length} buried loads.`, 'good'); c.buried = []; s.stamina -= 2; return endDay(s); }
@@ -237,11 +239,11 @@ function inspect(s) {
   const r = inspection(s);
   if (!r.shortLb && !r.shortFood && !r.missing.length) return win(s, 'The Mountie weighs your outfit: ' + r.lb.toLocaleString() + ' lb. "Welcome to Canada."');
   const short = Math.max(r.shortLb, r.shortFood);
-  const buyCost = Math.ceil(short / 50) * 12 + r.missing.length * 25;
+  const buyCost = Math.ceil(short / 50) * 25 + r.missing.length * 30;
   const opts = [];
   opts.push({ label: `Buy from quitters at the summit: $${buyCost}`, v: 'buy', ok: s.cash >= buyCost, cost: buyCost });
   opts.push({ label: `Slip the Mountie $60 (${s.seen.honest ? 'he remembers your honesty: good odds' : 'about 1 in 3 works; fail and you are turned back'})`, v: 'bribe', ok: s.cash >= 60 });
-  if (r.behind > 0) opts.push({ label: `Go back for the ${r.behind} lb still on the trail`, v: 'later' });
+  opts.push({ label: r.behind > 0 ? `Not yet: go back for the ${r.behind} lb still on the trail` : 'Not yet: earn cash packing for others ($10 a day), then come back', v: 'later' });
   opts.push({ label: 'Give up and turn back', v: 'quit' });
   s.event = { key: 'mountie', title: 'Mountie inspection', text: `Corporal checks your outfit: ${r.lb} lb (needs ${GOAL_LB}), ${r.food} lb food (needs ${FOOD_REQ})${r.missing.length ? ', missing: ' + r.missing.map(k => DEFS[k].name).join(', ') : ''}.`, options: opts };
   return s;
@@ -258,7 +260,7 @@ export function score(s) {
 // ---------- Night ----------
 function endDay(s, rested = false) {
   // eat
-  const need = s.charKey === 'partners' ? 5 : 3;
+  const need = s.charKey === 'partners' ? 6 : 3;
   let left = need;
   const food = s.camps[s.pos].cards.filter(id => def(s, id).kind === 'food').sort((a, b) => s.cards[a].w - s.cards[b].w);
   for (const id of food) { if (!left) break; const t = Math.min(left, s.cards[id].w); s.cards[id].w -= t; left -= t; s.stats.eaten += t; if (s.cards[id].w <= 0) removeCard(s, id); }
@@ -335,7 +337,7 @@ export const EVENTS = {
   tramOffer: { resolve() { } },
   mountie: {
     resolve(s, v, ev) {
-      if (v === 'buy') { const c = ev.options[0].cost; spend(s, c); s.stats.bought += Math.ceil(c / 12); return win(s, `You buy the shortfall from busted stampeders for $${c}. The Mountie stamps your papers.`); }
+      if (v === 'buy') { const c = ev.options[0].cost; spend(s, c); s.stats.bought += Math.ceil(c / 25); return win(s, `You buy the shortfall from busted stampeders for $${c}. The Mountie stamps your papers.`); }
       if (v === 'bribe') { spend(s, 60); if (rnd(s) < (s.seen.honest ? 0.8 : 0.35)) return win(s, 'The Mountie pockets the $60 and looks the other way. You\'re through, but it was close.'); return lose(s, 'The Mountie is insulted by the bribe. He turns you back to Dyea. Run over.'); }
       if (v === 'quit') return lose(s, 'You sell what you can at the summit and head home. The Klondike will have to wait.');
     }
