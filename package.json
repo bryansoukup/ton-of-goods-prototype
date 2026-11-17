@@ -1,0 +1,1 @@
+{"name":"ton-of-goods-prototype","private":true,"type":"module","scripts":{"sim":"node test/personas.mjs 300","e2e":"node test/e2e.mjs"},"devDependencies":{"playwright":"^1.65.1"}}
