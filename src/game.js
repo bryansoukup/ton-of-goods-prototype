@@ -18,11 +18,11 @@ export const DEADLINE = 40;
 
 export const DEFS = {
   flour: { name: 'Flour', kind: 'food', icon: '🌾', text: 'Food.' },
-  bacon: { name: 'Bacon', kind: 'food', icon: '🥓', text: 'Food. Can go rancid in an uncovered cache.', rancid: true },
+  bacon: { name: 'Bacon', kind: 'food', icon: '🥓', text: 'Food. Can go rancid in an uncovered cache.', rancid: true, use: 'Feast: +2 stamina' },
   beans: { name: 'Beans', kind: 'food', icon: '🫘', text: 'Food.' },
   oats: { name: 'Rolled Oats', kind: 'food', icon: '🥣', text: 'Food.' },
-  fruit: { name: 'Dried Fruit', kind: 'food', icon: '🍑', text: 'Food. Storms can\'t ruin it.', hardy: true },
-  coffee: { name: 'Coffee & Sugar', kind: 'food', icon: '☕', text: 'Food. In your pack: hauling costs 1 less stamina.' },
+  fruit: { name: 'Dried Fruit', kind: 'food', icon: '🍑', text: 'Food. Storms can\'t ruin it.', hardy: true, use: 'Eat it all: +2 stamina' },
+  coffee: { name: 'Coffee & Sugar', kind: 'food', icon: '☕', text: 'Food. In your pack: hauling costs 1 less stamina.', use: 'Brew a pot: +3 stamina' },
   tent: { name: 'Tent', kind: 'gear', icon: '⛺', text: 'Where you sleep: +1 stamina a night. Mounties require it.', req: true },
   stove: { name: 'Yukon Stove', kind: 'gear', icon: '🔥', text: 'Where you sleep: +1 stamina a night. Mounties require it.', req: true },
   tools: { name: 'Axe & Whipsaw', kind: 'gear', icon: '🪓', text: 'For the boat. Mounties require one.', req: true },
@@ -30,10 +30,10 @@ export const DEFS = {
   tarp: { name: 'Oilcloth Tarp', kind: 'gear', icon: '🛡️', text: 'In a cache: storms and rot can\'t touch food there.' },
   rifle: { name: 'Rifle', kind: 'gear', icon: '🔫', text: 'In a cache: halves theft risk there.' },
   snowshoes: { name: 'Snowshoes', kind: 'gear', icon: '🎿', text: 'In your pack: +1 load on Long Hill and the Golden Stairs.' },
-  medicine: { name: 'Medicine Chest', kind: 'gear', icon: '💊', text: 'Where you sleep: cures sickness events.' },
-  tobacco: { name: 'Trade Tobacco', kind: 'trade', icon: '🚬', text: 'Sell at any camp for $40.' },
-  hardware: { name: 'Nails, Pitch & Rope', kind: 'gear', icon: '🔩', text: 'Boat hardware. Dead weight until Lake Bennett.' },
-  pans: { name: 'Pots & Pans', kind: 'gear', icon: '🍳', text: 'Kitchen kit.' },
+  medicine: { name: 'Medicine Chest', kind: 'gear', icon: '💊', text: 'Where you sleep: cures fever events.', use: 'Dose up: cure fever, +2 stamina' },
+  tobacco: { name: 'Trade Tobacco', kind: 'trade', icon: '🚬', text: 'Worth cash to the right buyer.', use: 'Sell: +$40' },
+  hardware: { name: 'Nails, Pitch & Rope', kind: 'gear', icon: '🔩', text: 'Boat hardware for Lake Bennett.', use: 'Rig a rope & pulley: +2 loads today' },
+  pans: { name: 'Pots & Pans', kind: 'gear', icon: '🍳', text: 'Kitchen kit.', use: 'Sell to a camp cook: +$15' },
 };
 const DECK = { flour: 8, bacon: 4, beans: 4, oats: 2, fruit: 2, coffee: 2, tent: 1, stove: 1, tools: 2, woolens: 2, tarp: 2, rifle: 1, snowshoes: 1, medicine: 1, tobacco: 1, hardware: 3, pans: 3 };
 // Pack priority for auto-pack (lower = earlier)
@@ -62,7 +62,7 @@ export function newGame(seed = Date.now() % 1e9, charKey = 'greenhorn') {
     cards: {}, nextId: 1, camps: CAMPS.map(() => ({ cards: [], buried: [] })), snowLoad: [0, 0, 0, 0, 0],
     weather: [], guard: null, packers: false, sled: false, boost: 0, sick: false,
     phase: 'outfitter', event: null, over: null, log: [], seen: {}, flash: [],
-    stats: { stolen: 0, buried: 0, ruined: 0, eaten: 0, bought: 0, days: 0, avalanches: 0, thefts: 0, decisions: 0, tram: 0, spent: 0 },
+    stats: { burned: 0, stolen: 0, buried: 0, ruined: 0, eaten: 0, bought: 0, days: 0, avalanches: 0, thefts: 0, decisions: 0, tram: 0, spent: 0 },
   };
   for (const [k, n] of Object.entries(DECK)) for (let i = 0; i < n; i++) addCard(s, k, 0);
   s.weather = [rollWeather(s, 1), rollWeather(s, 2), rollWeather(s, 3)];
@@ -107,12 +107,13 @@ export function theftRisk(s, i) {
   if (i === 1 && s.seen.protected) return 0;
   let p = CAMPS[i].theft * Math.min(1, 0.5 + s.camps[i].cards.length / 12);
   if (campHas(s, i, 'rifle')) p *= 0.5;
+  if (s.vigil && s.day <= s.vigil) p *= 0.5;
   return Math.round(p * 100) / 100;
 }
 export function avalancheRisk(s, i) { if (!CAMPS[i].aval) return 0; return Math.min(0.3, Math.max(0, (s.snowLoad[i] - 3) * 0.04)); }
 export function stormExposed(s, i) { return i !== s.pos && s.camps[i].cards.length > 0 && !campHas(s, i, 'tarp'); }
 
-export function autoPack(s, sleep = 'origin') {
+export function autoPack(s, sleep = 'origin', smart = false) {
   // Fill the pack, but if you will sleep here, leave one food load, the tent and the stove behind.
   const here = s.camps[s.pos].cards.slice().sort((a, b) => (PRIO[s.cards[a].k] ?? 5) - (PRIO[s.cards[b].k] ?? 5) || a - b);
   const keep = new Set();
@@ -120,12 +121,12 @@ export function autoPack(s, sleep = 'origin') {
     const food = here.filter(id => def(s, id).kind === 'food');
     if (food.length) keep.add(food[food.length - 1]);
     for (const k of ['tent', 'stove', 'woolens']) { const id = here.find(i => s.cards[i].k === k); if (id) keep.add(id); }
-    // protect the cache you leave up the trail: send the tarp and rifle up first
-    const lead = ['tarp', 'rifle'].map(k => here.find(i => s.cards[i].k === k)).filter(Boolean);
+    // protect the cache you leave up the trail: send the tarp and rifle up first (smart mode only; players decide)
+    let lead = []; if (smart) lead = ['tarp', 'rifle'].map(k => here.find(i => s.cards[i].k === k)).filter(Boolean);
     here.sort((a, b) => (lead.includes(b) ? 1 : 0) - (lead.includes(a) ? 1 : 0));
   } else {
-    // leave a tarp and the rifle guarding what stays behind
-    for (const k of ['tarp', 'rifle']) { const id = here.find(i => s.cards[i].k === k); if (id) keep.add(id); }
+    // leave a tarp and the rifle guarding what stays behind (smart mode only)
+    if (smart) for (const k of ['tarp', 'rifle']) { const id = here.find(i => s.cards[i].k === k); if (id) keep.add(id); }
     // sleeping up top: bring tent, stove and one food first
     const first = [];
     for (const k of ['tent', 'stove']) { const id = here.find(i => s.cards[i].k === k); if (id) first.push(id); }
@@ -152,7 +153,7 @@ export function legal(s) {
   if (s.pos > 0) a.push({ type: 'back', ok: s.stamina >= 1 });
   if (s.pos < LEGS.length) a.push({ type: 'up', ok: s.stamina >= 1 });
   if (here.buried.length) a.push({ type: 'dig', ok: s.stamina >= 2 });
-  if (campHas(s, s.pos, 'tobacco')) a.push({ type: 'sell', ok: true });
+  for (const k of usableHere(s)) a.push({ type: 'use', k, ok: true });
   a.push({ type: 'guard', ok: s.guard === s.pos ? true : s.cash >= 5 });
   if (s.pos <= 1) a.push({ type: 'packers', ok: s.packers || s.cash >= 15 });
   if (s.pos === 3 && here.cards.length) a.push({ type: 'tram', ok: s.cash >= 6 });
@@ -196,7 +197,17 @@ export function act(s, a) {
     case 'back': if (s.pos > 0 && s.stamina >= 1) { s.pos--; s.stamina--; log(s, `You hike down to ${CAMPS[s.pos].name} (1 stamina).`); } return s;
     case 'up': if (s.pos < 4 && s.stamina >= 1) { s.pos++; s.stamina--; log(s, `You climb empty-handed to ${CAMPS[s.pos].name} (1 stamina).`); } return s;
     case 'dig': { const c = s.camps[s.pos]; if (!c.buried.length || s.stamina < 2) return s; c.cards.push(...c.buried); log(s, `You dig out ${c.buried.length} buried loads.`, 'good'); c.buried = []; s.stamina -= 2; return endDay(s); }
-    case 'sell': { const id = s.camps[s.pos].cards.find(i => s.cards[i].k === 'tobacco'); if (id) { removeCard(s, id); s.cash += 40; log(s, 'Sold the trade tobacco for $40.'); } return s; }
+    case 'sell': return act(s, { type: 'use', k: 'tobacco' });
+    case 'use': {
+      const id = s.camps[s.pos].cards.find(i => s.cards[i].k === a.k); if (!id || !DEFS[a.k].use) return s;
+      const nm = DEFS[a.k].name, lb = s.cards[id].w; removeCard(s, id); s.stats.burned += lb;
+      const up = n => { s.stamina = Math.min(s.maxStamina, s.stamina + n); };
+      if (a.k === 'coffee') up(3); if (a.k === 'fruit' || a.k === 'bacon') up(2);
+      if (a.k === 'medicine') { up(2); s.sick = false; }
+      if (a.k === 'tobacco') s.cash += 40; if (a.k === 'pans') s.cash += 15;
+      if (a.k === 'hardware') s.boost += 2;
+      log(s, `Burned ${nm} (−${lb} lb): ${DEFS[a.k].use.split(': ')[1]}.`); return s;
+    }
     case 'guard': {
       if (s.guard === s.pos) { s.guard = null; log(s, 'You dismiss the watchman.'); return s; }
       if (s.cash < 5) return s; s.guard = s.pos; log(s, `You hire a watchman at ${CAMPS[s.pos].name} ($5 for each night you are away). Nothing is stolen from a guarded camp.`); return s;
@@ -216,6 +227,7 @@ export function act(s, a) {
   return s;
 }
 
+export function usableHere(s) { return [...new Set(s.camps[s.pos].cards.map(id => s.cards[id].k))].filter(k => DEFS[k].use); }
 export function inspection(s) {
   const lb = campLb(s, 4), food = foodLbAt(s, 4);
   const missing = ['tent', 'stove', 'tools'].filter(k => !campHas(s, 4, k));
@@ -228,7 +240,7 @@ function inspect(s) {
   const buyCost = Math.ceil(short / 50) * 12 + r.missing.length * 25;
   const opts = [];
   opts.push({ label: `Buy from quitters at the summit: $${buyCost}`, v: 'buy', ok: s.cash >= buyCost, cost: buyCost });
-  opts.push({ label: 'Slip the Mountie $60 (risky)', v: 'bribe', ok: s.cash >= 60 });
+  opts.push({ label: `Slip the Mountie $60 (${s.seen.honest ? 'he remembers your honesty: good odds' : 'about 1 in 3 works; fail and you are turned back'})`, v: 'bribe', ok: s.cash >= 60 });
   if (r.behind > 0) opts.push({ label: `Go back for the ${r.behind} lb still on the trail`, v: 'later' });
   opts.push({ label: 'Give up and turn back', v: 'quit' });
   s.event = { key: 'mountie', title: 'Mountie inspection', text: `Corporal checks your outfit: ${r.lb} lb (needs ${GOAL_LB}), ${r.food} lb food (needs ${FOOD_REQ})${r.missing.length ? ', missing: ' + r.missing.map(k => DEFS[k].name).join(', ') : ''}.`, options: opts };
@@ -314,12 +326,12 @@ function endDay(s, rested = false) {
 // ---------- Events ----------
 const ARRIVE = {
   1: s => ({ key: 'packersOffer', title: 'Tlingit packers', text: 'At Canyon City, Tlingit packers offer to carry for you. They know this trail better than anyone. $15 up front, then $10 every haul day, for +3 loads per haul.', options: [{ label: 'Hire them ($15, then $10/haul)', v: 'yes', ok: s.cash >= 15 }, { label: 'Haul it yourself', v: 'no' }] }),
-  2: s => ({ key: 'soapy', title: 'A friendly stranger', text: 'A smooth-talking man at Sheep Camp says he is with "the Telegraph Office" and can wire your family for $10. Soapy Smith\'s gang runs this con. Or you could pay a camp regular $20 to keep an eye on your Canyon City cache for good.', options: [{ label: 'Pay the "telegraph" ($10)', v: 'con', ok: s.cash >= 10 }, { label: 'Pay $20 to protect the Canyon City cache', v: 'protect', ok: s.cash >= 20 && s.camps[1].cards.length > 0 }, { label: 'Ignore him', v: 'no' }] }),
+  2: s => ({ key: 'soapy', title: 'Miners\' court at Sheep Camp', text: 'A cache thief has been caught. The stampeders are holding a miners\' meeting to deal with him and want every man to stand watch in turns. Joining costs you a hard night (−2 stamina) but scares thieves off the whole trail for 10 days.', options: [{ label: 'Join the committee (−2 stamina, theft halved for 10 days)', v: 'join' }, { label: 'Keep hauling. Not your fight', v: 'no' }] }),
   3: s => ({ key: 'tramOffer', title: 'The Scales', text: 'Above you, the Golden Stairs: 1,500 steps cut in the ice. A new aerial tramway lifts goods to the Summit for $6 per 50 lb load. You can use it any day you are at the Scales.', options: [{ label: 'Good to know', v: 'ok' }] }),
 };
 export const EVENTS = {
   packersOffer: { resolve(s, v) { if (v === 'yes' && s.cash >= 15) act(s, { type: 'packers' }); s.stats.decisions--; } },
-  soapy: { resolve(s, v) { if (v === 'con') { spend(s, 10); flash(s, 'There is no telegraph line. Soapy\'s man pockets your $10 and laughs.', 'bad'); } if (v === 'protect') { spend(s, 20); s.seen.protected = 1; log(s, 'The Canyon City cache is now watched for free.', 'good'); } } },
+  soapy: { resolve(s, v) { if (v === 'join') { s.stamina = Math.max(0, s.stamina - 2); s.vigil = s.day + 10; log(s, 'The thief is run out of camp. Cache thieves lie low for a while.', 'good'); } } },
   tramOffer: { resolve() { } },
   mountie: {
     resolve(s, v, ev) {
@@ -328,6 +340,7 @@ export const EVENTS = {
       if (v === 'quit') return lose(s, 'You sell what you can at the summit and head home. The Klondike will have to wait.');
     }
   },
+  telegraph: { random: true, when: s => s.pos <= 1 && s.cash >= 10, make: () => ({ title: 'Telegraph office', text: 'A friendly man runs a "telegraph office" in a tent: $10 to wire home for money. Some swear it works.', options: [{ label: 'Wire home ($10)', v: 'pay' }, { label: 'Walk on', v: 'no' }] }), resolve(s, v) { if (v !== 'pay') return; spend(s, 10); if (rnd(s) < 0.25) { s.cash += 50; flash(s, 'Days later, $50 really does arrive from home. +$50.', 'good'); } else flash(s, 'There is no telegraph wire out of Dyea. Soapy Smith\'s man pockets your $10.', 'bad'); } },
   shell: { random: true, max: 2, when: s => s.pos <= 1 && s.cash >= 20, make: () => ({ title: 'Shell game', text: 'A man in a bowler hat runs a shell game on a barrel. "Find the pea, triple your money!"', options: [{ label: 'Bet $20', v: 'bet' }, { label: 'Walk away', v: 'no' }] }), resolve(s, v) { if (v !== 'bet') return; if (rnd(s) < 0.33) { s.cash += 40; flash(s, 'You find the pea! +$40.', 'good'); } else { spend(s, 20); flash(s, 'The pea was never under any shell. −$20.', 'bad'); } } },
   quitter: { random: true, max: 2, when: s => s.cash >= 20, make: () => ({ title: 'A quitter', text: 'A stampeder is giving up and going home. He\'ll sell you two 50 lb sacks of flour, right here, for $20.', options: [{ label: 'Buy (+100 lb here, $20)', v: 'yes' }, { label: 'No thanks', v: 'no' }] }), resolve(s, v) { if (v === 'yes') { spend(s, 20); addCard(s, 'flour', s.pos); addCard(s, 'flour', s.pos); s.stats.bought += 2; log(s, 'You buy two sacks of flour.', 'good'); } } },
   beggar: { random: true, when: s => s.camps[s.pos].cards.some(id => def(s, id).kind === 'food'), make: () => ({ title: 'A hungry stampeder', text: 'A man who lost everything in the canyon begs for food. He offers to haul for you tomorrow in return.', options: [{ label: 'Give him a food load (−50 lb, +3 loads next haul)', v: 'give' }, { label: 'Refuse', v: 'no' }] }), resolve(s, v) { if (v !== 'give') return; const id = s.camps[s.pos].cards.find(i => def(s, i).kind === 'food'); if (id) { removeCard(s, id); s.boost = 3; log(s, 'He eats like a wolf, then shoulders a pack beside you.', 'good'); } } },

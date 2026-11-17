@@ -22,8 +22,8 @@ function packFor(s, sleepAt, opt) {
 
 export const PERSONAS = {
   deckbuilder: { // roguelite / deckbuilder fan: optimizes, uses every tool
-    char: 'greenhorn', shop: ['sled', 'food', 'food'], smartGear: true, restBuffer: 1, reserve: 60,
-    event: (s, ev, opts) => ({ packersOffer: 'yes', soapy: 'protect', shell: 'no', quitter: 'yes', beggar: 'give', wallet: 'hand', stolenGoods: 'buy' }[ev.key]),
+    char: 'greenhorn', shop: ['sled', 'food', 'food', 'food'], smartGear: true, burn: true, restBuffer: 1, reserve: 60,
+    event: (s, ev, opts) => ({ packersOffer: 'yes', soapy: 'join', shell: 'no', quitter: 'yes', beggar: 'give', wallet: 'hand', stolenGoods: 'buy' }[ev.key]),
     sleep: (s, ids) => (s.camps[s.pos].cards.length - ids.length) >= ids.length ? 'origin' : 'dest', guard: true, tram: true,
   },
   historian: { // strategy/history fan: careful, protects caches
@@ -37,8 +37,8 @@ export const PERSONAS = {
     sleep: () => 'origin', guard: false, tram: false,
   },
   streamer: { // streamer: fast, risky, gambles for clips
-    char: 'partners', shop: ['sled'], smartGear: true, restBuffer: 0, reserve: 0,
-    event: (s, ev) => ({ packersOffer: 'no', soapy: 'con', shell: 'bet', quitter: 'no', beggar: 'no', wallet: 'keep', stolenGoods: 'no', mountie: 'bribe' }[ev.key]),
+    char: 'partners', shop: ['sled'], smartGear: true, burn: true, restBuffer: 0, reserve: 0,
+    event: (s, ev) => ({ packersOffer: 'no', soapy: 'no', telegraph: 'pay', shell: 'bet', quitter: 'no', beggar: 'no', wallet: 'keep', stolenGoods: 'no', mountie: 'bribe' }[ev.key]),
     sleep: () => 'dest', guard: false, tram: false,
   },
 };
@@ -76,8 +76,10 @@ export function playRun(seed, pk, maxSteps = 600) {
     if (G.campHas(s, s.pos, 'tobacco') && (p.reserve > 0)) G.act(s, { type: 'sell' });
     if (p.tram && s.pos === 3 && s.cash - 6 >= p.reserve + (s.guard !== null ? 0 : 0)) { G.act(s, { type: 'tram', n: Math.floor((s.cash - p.reserve) / 6) }); if (!s.camps[3].cards.length) continue; }
     if (s.pos === 4 || !here.cards.length) { if (s.stamina >= 1 && s.pos < 4) G.act(s, { type: 'up' }); else G.act(s, { type: 'rest' }); continue; }
-    let ids = G.autoPack(s); const sleep = p.sleep(s, ids); ids = p.smartGear ? G.autoPack(s, sleep) : G.autoPack(s);
-    const cost = G.haulCost(s, ids);
+    let ids = G.autoPack(s); const sleep = p.sleep(s, ids); ids = p.smartGear ? G.autoPack(s, sleep, true) : G.autoPack(s);
+    let cost = G.haulCost(s, ids);
+    if (p.burn && s.stamina < cost && G.totalLb(s) > 2150) { const k = ['coffee', 'fruit', 'bacon'].find(k => G.campHas(s, s.pos, k)); if (k) { G.act(s, { type: 'use', k }); ids = p.smartGear ? G.autoPack(s, sleep, true) : G.autoPack(s); cost = G.haulCost(s, ids); } }
+    if (p.burn && s.pos === 3 && G.campHas(s, 3, 'hardware') && G.totalLb(s) > 2150) { G.act(s, { type: 'use', k: 'hardware' }); ids = G.autoPack(s, sleep, true); cost = G.haulCost(s, ids); }
     if (G.capacity(s, ids) === 0 || s.stamina < cost + p.restBuffer) { G.act(s, { type: 'rest' }); continue; }
     if (s.packers && s.cash < p.reserve + 10) G.act(s, { type: 'packers' });
     if (s.guard !== null && s.guard !== s.pos && s.camps[s.guard].cards.length === 0) G.act(s, { type: 'guard' }) ;

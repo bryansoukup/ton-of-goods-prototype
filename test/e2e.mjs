@@ -14,22 +14,22 @@ for (const r of runs) {
   await page.screenshot({ path: `shots/${r.name}-1-outfitter.png` });
   await page.click('[data-k="sled"]'); await page.click('[data-k="food"]');
   await page.click('#go');
-  await page.screenshot({ path: `shots/${r.name}-2-day1.png`, fullPage: true });
-  let steps = 0, shotMid = false;
+  await page.screenshot({ path: `shots/${r.name}-2-day1.png` });
+  let steps = 0, shotMid = false, shotBurn = false;
   const vis = async sel => (await page.$(sel)) && await page.isVisible(sel) && await page.isEnabled(sel);
   while (steps++ < 400) {
     const st = await page.evaluate(() => { const s = window.__tog.state; return s && { over: !!s.over, ev: s.event?.key, pos: s.pos, day: s.day, here: s.camps[s.pos].cards.length, buried: s.camps[s.pos].buried.length, behind: [0, 1, 2, 3].some(i => i < s.pos && (s.camps[i].cards.length || s.camps[i].buried.length)) }; });
     if (!st || st.over) break;
-    if (!shotMid && st.pos >= 2) { shotMid = true; await page.screenshot({ path: `shots/${r.name}-3-mid.png`, fullPage: true }); }
+    if (!shotMid && st.pos >= 2) { shotMid = true; await page.screenshot({ path: `shots/${r.name}-3-mid.png` }); }
     if (st.ev) {
       if (st.ev === 'mountie') await page.screenshot({ path: `shots/${r.name}-4-mountie.png` });
       const btns = await page.$$('#sheet [data-i]:not([disabled])'); await btns[0].click(); continue;
     }
     if (st.buried && await vis('#dig')) { await page.click('#dig'); continue; }
-    if (st.pos === 4 && !st.behind) { await page.click('#mounties'); continue; }
+    if (st.pos === 4 && !st.behind) { await page.click('#mounties2'); continue; }
+    if (st.day === 6 && !shotBurn && await vis('[data-u]')) { shotBurn = true; await page.click('[data-u]'); }
     if (!st.here && st.behind) { if (await vis('#back')) await page.click('#back'); else await page.click('#rest'); continue; }
     if (!st.here && !st.behind && st.pos < 4) { if (await vis('#up')) await page.click('#up'); else await page.click('#rest'); continue; }
-    if (await vis('#auto')) await page.click('#auto');
     if (await vis('#haulO')) { await page.click('#haulO'); continue; }
     if (await vis('#haulD')) { await page.click('#haulD'); continue; }
     await page.click('#rest');
