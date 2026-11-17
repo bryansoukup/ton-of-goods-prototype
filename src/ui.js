@@ -4,7 +4,7 @@ import * as FX from './fx.js';
 const $ = s => document.querySelector(s);
 const app = $('#app'), modal = $('#modal'), sheet = $('#sheet'), toasts = $('#toasts');
 const W = { clear: 'Clear', snow: 'Snow', storm: 'Storm' };
-let s = null, pack = {}, screen = 'title';
+let s = null, pack = {}, screen = 'title', moreOpen = false, packOpen = null;
 const ART = { flour: 'flour', bacon: 'bacon', beans: 'beans', oats: 'flour', fruit: 'beans', coffee: 'coffee', tent: 'tent', stove: 'stove', tools: 'tools', woolens: 'woolens', tarp: 'tarp', rifle: 'rifle', snowshoes: 'snowshoes', medicine: 'medicine', tobacco: 'tobacco', hardware: 'hardware', pans: 'pans' };
 const PORTRAIT = { greenhorn: 'Recommended first run', sourdough: '', partners: '' };
 const CH_STATS = { greenhorn: ['$280', '11 stamina'], sourdough: ['$140', '12 stamina', '+1 load', '+1 rest', '2-day forecast'], partners: ['$130', '+2 loads', 'eats double'] };
@@ -18,20 +18,29 @@ function toast(msg, tone = '') { while (toasts.children.length >= 3) toasts.firs
 
 function doAct(a) {
   const prevDay = s.day, before = s.camps.map((c, i) => G.campLb(s, i)), cash0 = s.cash, avs = s.stats.avalanches, thefts = s.stats.thefts, ruined = s.stats.ruined;
+  const fromEl = document.getElementById('camp' + s.pos);
+  const toEl = a.type === 'haul' ? document.getElementById('camp' + (s.pos + 1)) : null;
+  const haulN = a.type === 'haul' ? (a.ids && a.ids.length ? a.ids.length : 6) : 0;
   G.act(s, a);
-  pack = {}; toasts.innerHTML = '';
+  pack = {}; toasts.innerHTML = ''; moreOpen = false;
   for (const f of s.flash) toast(f.msg, f.tone);
   if (s.day !== prevDay) { for (const f of s.flash) { const m = f.msg.match(/at ([A-Z][a-zA-Z ]+?)[:!.]/); const i = m ? G.CAMPS.findIndex(c => c.name === m[1].trim()) : -1; if (i >= 0) shakeCamp(i); } }
-  // sound
-  if (a.type === 'haul') { A.sfx('drop', 0.6); setTimeout(() => A.sfx('step1', 0.5), 120); setTimeout(() => A.sfx('step2', 0.5), 380); }
-  else if (a.type === 'use') A.sfx(['tobacco', 'pans'].includes(a.k) ? 'coins' : 'flip', 0.7);
+  if (a.type === 'haul') {
+    A.sfx('drop', 0.65);
+    setTimeout(() => A.sfx('step1', 0.5), 120);
+    setTimeout(() => A.sfx('step2', 0.5), 380);
+    setTimeout(() => A.sfx('thud', 0.9), 560);
+    FX.haulFly(fromEl, toEl, haulN);
+  } else if (a.type === 'use') A.sfx(['tobacco', 'pans'].includes(a.k) ? 'coins' : 'flip', 0.7);
   else if (a.type === 'rest') A.sfx('thud', 0.4);
   else if (a.type === 'choose' || a.type === 'shop') A.sfx('place', 0.6);
   else if (['tram', 'packers', 'guard', 'work'].includes(a.type)) A.sfx('coins', 0.6);
+  else if (a.type === 'mounties') { A.sfx('thud', 0.9); setTimeout(() => A.sfx('flip', 0.5), 180); }
+  else A.sfx('place', 0.4);
   if (s.stats.avalanches > avs) { A.rumble(2.4); setTimeout(() => FX.shake(document.body, true), 50); }
-  else if (s.stats.thefts > thefts || s.stats.ruined > ruined) { A.sfx('hit', 0.7); setTimeout(() => FX.shake(document.body), 50); }
+  else if (s.stats.thefts > thefts) { A.sfx('hit', 0.75); setTimeout(() => FX.shake(document.body), 50); }
+  else if (s.stats.ruined > ruined) { A.sfx('hit', 0.55); setTimeout(() => FX.shake(document.body), 50); }
   save(); render();
-  // floating weight numbers per camp
   s.camps.forEach((c, i) => { const d = G.campLb(s, i) - before[i]; if (d) FX.floatText(document.getElementById('camp' + i), (d > 0 ? '+' : '−') + Math.abs(d) + ' lb', d > 0 ? 'good' : 'bad'); });
   if (s.cash !== cash0) FX.floatText(document.querySelector('.chip.cash'), (s.cash > cash0 ? '+$' : '−$') + Math.abs(s.cash - cash0), s.cash > cash0 ? 'good' : 'bad');
   FX.setSnow(s.weather[0] === 'storm' ? 2.2 : s.weather[0] === 'snow' ? 0.9 : 0.4, s.weather[0] === 'clear' ? 0.25 : s.weather[0] === 'snow' ? 0.7 : 1);
@@ -41,15 +50,40 @@ function doAct(a) {
 let shakeQ = [];
 function shakeCamp(i) { shakeQ.push(i); }
 
+// ---------- Teaching (UI only; game rules unchanged) ----------
+function reached(st) {
+  let r = st.pos;
+  st.camps.forEach((c, i) => { if (c.cards.length || c.buried.length) r = Math.max(r, i); });
+  return r;
+}
+function tut(st) {
+  const r = reached(st);
+  return { cache: r >= 1, hazard: r >= 2, packers: r >= 1, tram: r >= 3, pack: st.pos >= 1 };
+}
+function tipOnce(key, html) {
+  const seen = store.get('tog_tips', {});
+  if (seen[key]) return '';
+  seen[key] = 1; store.set('tog_tips', seen);
+  return `<div class="coach">${html}</div>`;
+}
+function packingOn() { return packOpen ?? tut(s).pack; }
+function pile(n) {
+  if (!n) return '<span class="pile"></span>';
+  return `<span class="pile" aria-hidden="true">${'<i></i>'.repeat(Math.min(18, n))}</span>`;
+}
+function pips(cur, max, cost = 0) {
+  return `<span class="pips" aria-label="Stamina ${cur} of ${max}">${Array.from({ length: max }, (_, i) => `<i class="${i < cur - cost ? 'on' : i < cur ? 'cost' : 'off'}"></i>`).join('')}</span>`;
+}
+
 // ---------- Title / character select ----------
 function title() {
   screen = 'title'; document.body.classList.remove('ingame'); modal.classList.add('hidden');
-  FX.setSnow(1.6, 1);
+  FX.setSnow(1.6, 1); A.setBed('title'); A.windLevel(0.35);
   app.innerHTML = `<div class="title" id="title">
     <div class="art"></div><div class="vig"></div>
     <div class="top">
       <div class="kicker">KLONDIKE · 1897</div>
-      <h1 class="logo">Ton<span class="of">of</span>Goods</h1>
+      <h1 class="logo">Ton<span class="of">or</span>Starve</h1>
       <div class="rule">✦</div>
       <p class="hook">The Mounties demand a ton.<br>You can carry fifty pounds.</p>
     </div>
@@ -74,39 +108,47 @@ function selectChar() {
       <div class="stats">${CH_STATS[k].map(x => `<span class="st">${x}</span>`).join('')}</div>
       <div class="fl">${CH_FLAVOR[k]}</div></div></div></button>`).join('')}</div>
     <div class="selectfoot">${saved ? `<button id="cont">Continue run: day ${saved.day}, ${esc(G.CHARACTERS[saved.charKey].name)}</button>` : ''}<button id="backTitle">← Title</button></div>
-    <p class="sub" style="color:#a89678;font-size:12px;margin-top:14px">Sound: Kenney.nl (CC0) · Fonts: Rye &amp; IM Fell (SIL OFL) · Art generated for this prototype</p>
+    <p class="sub" style="color:#a89678;font-size:12px;margin-top:14px">Sound: Kenney.nl (CC0) · Title music synthesized for this prototype (CC0) · Fonts: Rye &amp; IM Fell (SIL OFL) · Art generated for this prototype</p>
     <p class="sub" style="color:#cbb896">${runs ? `Runs: ${runs} · Best score: ${best ? best.score : '-'}` : ''}</p>
   </div>`;
   app.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { A.unlock(); A.sfx('place', 0.8); start(b.dataset.c); });
-  $('#cont') && ($('#cont').onclick = () => { A.unlock(); s = saved; screen = 'game'; render(); if (s.event) showEvent(); });
+  $('#cont') && ($('#cont').onclick = () => { A.unlock(); A.setBed('game'); s = saved; screen = 'game'; render(); if (s.event) showEvent(); });
   $('#backTitle').onclick = () => title();
 }
 function howTo() {
   return `<details><summary>How to play</summary><ul>
-  <li><b>Haul</b> moves a day's worth of 50 lb loads up to the next camp. Pick loads with + and −, or let Haul auto-pack.</li><li><b>Burn a card</b> for a boost now: coffee for stamina, pans for cash, rope for extra loads. But it's weight the Mounties won't count.</li>
-  <li><b>Choose where to sleep.</b> The camp you sleep at is guarded. Every other pile is a cache at risk, and each camp shows tonight's risk.</li>
-  <li><b>Cards do things depending on where they sit.</b> A tent or stove where you sleep restores stamina. A tarp in a cache stops storms ruining food. A rifle in a cache halves theft. Snowshoes in your pack add a load on snowy legs.</li>
-  <li>You eat 3 lb a day from food where you sleep. Snow builds up at Sheep Camp and the Scales until it avalanches. Buried loads can be dug out.</li>
-  <li>At the Summit, the Mounties check for 2,000 lb, 900 lb of food, a tent, a stove and tools. The pass closes after day ${G.DEADLINE}.</li></ul></details>`;
+  <li><b>Haul</b> moves a day's loads up to the next camp. The game packs for you unless you choose the loads.</li>
+  <li><b>The camp you sleep at is guarded.</b> Every other pile is a cache at risk.</li>
+  <li>Cards matter by where they sit: a tent or stove where you sleep restores stamina; a tarp covers a cache; a rifle halves theft; snowshoes in your pack help on snowy legs.</li>
+  <li>You eat a little food each night where you sleep. Snow can avalanche at the upper camps. At the Summit, the Mounties want a full ton, enough food, a tent, a stove and tools before the pass closes.</li></ul></details>`;
 }
 function start(charKey) {
   const q = new URLSearchParams(location.search).get('seed');
   s = G.newGame(q ? +q : Math.floor(Math.random() * 1e9), charKey);
-  screen = 'game'; pack = {}; save(); FX.setSnow(0.4, 0.3); A.windLevel(0.25); render(); outfitter();
+  screen = 'game'; pack = {}; packOpen = null; moreOpen = false; save();
+  A.setBed('game'); FX.setSnow(0.4, 0.3); A.windLevel(0.25); render(); outfitter();
 }
 
 // ---------- Outfitter ----------
 function outfitter() {
   const opts = G.legal(s);
   modal.classList.remove('hidden');
-  const extra = Object.values(s.cards).length - 40;
+  const meta = {
+    sled: { name: 'Sled', price: '$50', blurb: 'Heavier hauls on the first two legs.' },
+    food: { name: 'Beans', price: '$15', blurb: 'A spare sack for the trail.' },
+    tarp: { name: 'Tarp', price: '$12', blurb: 'Covers a cache in a storm.' },
+  };
   sheet.innerHTML = `<h2>Dyea outfitter</h2>
-  <p>You have <b>$${s.cash}</b>. Money left over can buy your way out of trouble at the summit (supplies from quitters, a bribe) or pay for packers, a watchman and the tramway on the trail.</p>
-  <p class="sub">Your outfit: 40 loads = 2,000 lb exactly${extra > 0 ? ` + ${extra} extra` : ''}. You'll eat about 100 lb on the trail and lose some to thieves and storms. Arrive short and the Mounties won't let you in.</p>
-  <div class="opts">${opts.filter(o => o.type === 'shop').map(o => `<button data-k="${o.key}" ${o.ok ? '' : 'disabled'}>${esc(o.label)}</button>`).join('')}
-  <button class="primary" id="go">Head up the trail →</button></div>`;
-  sheet.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { G.act(s, { type: 'shop', key: b.dataset.k }); save(); render(); outfitter(); });
-  $('#go').onclick = () => { G.act(s, { type: 'depart' }); modal.classList.add('hidden'); save(); render(); };
+  <p>Your ton is packed. Cash left buys help on the trail.</p>
+  <div class="shop">${opts.filter(o => o.type === 'shop').map(o => {
+    const m = meta[o.key] || { name: o.label, price: '', blurb: '' };
+    const bought = /bought/i.test(o.label);
+    return `<button data-k="${o.key}" ${o.ok ? '' : 'disabled'}><b>${esc(bought ? m.name + ' bought' : m.name)}</b><em>${esc(bought ? '' : m.price)}</em><span>${esc(m.blurb)}</span></button>`;
+  }).join('')}</div>
+  <div class="opts"><button class="primary" id="go">Head up the trail</button></div>
+  <p class="sub cashline">$${s.cash} in your pocket.</p>`;
+  sheet.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { G.act(s, { type: 'shop', key: b.dataset.k }); A.sfx('coins', 0.5); save(); render(); outfitter(); });
+  $('#go').onclick = () => { G.act(s, { type: 'depart' }); A.sfx('fan', 0.55); modal.classList.add('hidden'); save(); render(); };
 }
 
 // ---------- Events ----------
@@ -126,96 +168,146 @@ function packIds() {
   return ids;
 }
 function setPackFromIds(ids) { pack = {}; for (const id of ids) { const k = s.cards[id].k; pack[k] = (pack[k] || 0) + 1; } }
-function coach(cap, cost) {
-  const here = s.camps[s.pos], tips = [];
-  const behind = [0, 1, 2, 3].filter(i => i < s.pos && (s.camps[i].cards.length || s.camps[i].buried.length));
-  if (s.day === 1 && s.pos === 0) tips.push('Start here: tap a <b>Haul</b> button at the bottom. It packs for you. The camp you sleep at is guarded, and every other pile is exposed.');
-  if (s.pos === 4 && !behind.length) tips.push('Everything is up. Tap <b>Face the Mounties</b>.');
-  else if (!here.cards.length && !here.buried.length && behind.length) tips.push(`Nothing left here. <b>Walk down</b> to ${G.CAMPS[behind[behind.length - 1]].name} to fetch the rest.`);
-  if (here.buried.length) tips.push(`${here.buried.length} loads are buried here. <b>Dig out</b> to recover them (a day and 2 stamina).`);
-  if (s.weather[1] === 'storm') tips.push('<b>Storm tomorrow:</b> hauling is halved and the Golden Stairs close. Uncovered caches may lose food tonight. A tarp in a cache protects it.');
-  const exposed = [0, 1, 2, 3, 4].filter(i => i !== s.pos && G.stormExposed(s, i) && s.camps[i].cards.some(id => G.DEFS[s.cards[id].k].kind === 'food'));
-  if (exposed.length && G.campHas(s, s.pos, 'tarp') && s.pos < 4) tips.push(`Your food at ${exposed.map(i => G.CAMPS[i].name).join(', ')} is uncovered and your tarp is here. Pack the tarp so it covers the pile you leave.`);
-  if (s.stamina < cost && here.cards.length) tips.push('Too tired to haul. <b>Rest</b>, and sleep where your tent and stove are.');
-  if (s.day >= G.DEADLINE - 6) tips.push(`The pass closes after day ${G.DEADLINE}. Consider the tramway or buying from quitters at the top.`);
-  return tips.slice(0, 2).map(t => `<div class="coach">${t}</div>`).join('');
+
+function coach(T) {
+  if (s.pos === 4) {
+    const behind = [0, 1, 2, 3].some(i => s.camps[i].cards.length || s.camps[i].buried.length);
+    if (!behind) return tipOnce('mounties', 'Everything is up. Face the Mounties when you are ready.') || `<div class="coach">Everything is up. Face the Mounties when you are ready.</div>`;
+  }
+  if (s.camps[s.pos].buried.length) return `<div class="coach">Loads are buried here. Dig them out when you can.</div>`;
+  if (s.stamina < 2 && s.camps[s.pos].cards.length) return `<div class="coach">Too tired to haul. Rest, and sleep where your tent and stove are.</div>`;
+  if (T.cache) {
+    const t = tipOnce('cache', 'You only guard the camp you sleep at. Everything you leave behind is a cache.');
+    if (t) return t;
+  }
+  if (T.packers && s.pos <= 1) {
+    const t = tipOnce('packers', 'Tlingit packers will carry more, for a fee. You will find them under More.');
+    if (t) return t;
+  }
+  if (T.hazard) {
+    const t = tipOnce('hazard', 'Snow builds on the upper camps. Too much, and the slope lets go.');
+    if (t) return t;
+  }
+  if (T.tram && s.pos === 3) {
+    const t = tipOnce('tram', 'The tramway can lift loads to the Summit — for a price. You will find it under More.');
+    if (t) return t;
+  }
+  if (s.day === 1 && s.pos === 0) return `<div class="coach">Haul a day's load up the pass. Walk back tonight, or camp with what you carried.</div>`;
+  if (s.weather[1] === 'storm') return `<div class="coach">A storm is coming. Hauling will be harder tomorrow.</div>`;
+  return '';
 }
+
 function render() {
   if (screen !== 'game' || !s) return;
   document.body.classList.add('ingame');
+  const T = tut(s);
   const ins = G.inspection(s);
   const ids = packIds(), cap = G.capacity(s, ids), cost = G.haulCost(s, ids);
   const here = s.camps[s.pos];
+  const stormComing = s.weather[1] === 'storm' || s.charKey === 'sourdough';
   const forecast = s.charKey === 'sourdough' ? `${W[s.weather[1]]}, then ${W[s.weather[2]]}` : W[s.weather[1]];
-  const daysLeft = G.DEADLINE - s.day;
   let bar = null;
+  const showGaugeN = T.tram || ins.lb > 0;
   let html = `<div class="status paper">
-   <div class="chips"><span class="brand">Ton of Goods</span>
-    <span class="chip ${daysLeft <= 5 ? 'warn' : ''}">Day ${s.day}/${G.DEADLINE}</span>
-    <span class="chip">Today ${W[s.weather[0]]}</span><span class="chip">Next ${forecast}</span>
-    <span class="chip ${s.stamina <= 3 ? 'warn' : ''}">Stamina ${s.stamina}/${s.maxStamina}${s.sick ? ' · fever' : ''}</span>
+   <div class="chips"><span class="brand">Ton or Starve</span>
+    <span class="chip">Day ${s.day}</span>
+    <span class="chip wx">Today ${W[s.weather[0]]}${stormComing ? ' · next ' + forecast : ''}</span>
+    ${pips(s.stamina, s.maxStamina, here.cards.length && s.pos < 4 ? cost : 0)}
     <span class="chip cash">$${s.cash}</span>
-    ${s.packers ? '<span class="chip">Packers</span>' : ''}${s.sled ? '<span class="chip">Sled</span>' : ''}
+    ${s.packers ? '<span class="chip">Packers</span>' : ''}${s.sled ? '<span class="chip">Sled</span>' : ''}${s.sick ? '<span class="chip warn">Fever</span>' : ''}
    </div>
-   <div class="gauge" id="gauge"><i style="width:${Math.min(100, ins.lb / 20)}%"></i>${[25, 50, 75].map(x => `<span class="tick" style="left:${x}%"></span>`).join('')}<b>${ins.lb.toLocaleString()} / 2,000 lb at the Summit</b></div><div class="gsub"><span>Food at Summit ${ins.food}/900</span><span>Whole outfit ${G.totalLb(s).toLocaleString()} lb</span></div>
+   <div class="gauge" id="gauge"><i style="width:${Math.min(100, ins.lb / 20)}%"></i>${[25, 50, 75].map(x => `<span class="tick" style="left:${x}%"></span>`).join('')}<b>${showGaugeN ? ins.lb.toLocaleString() + ' lb at the Summit' : 'Toward the Summit'}</b></div>
+   <div class="days" title="Days on the trail"><i style="width:${Math.min(100, (s.day / G.DEADLINE) * 100)}%"></i></div>
   </div>`;
-  // trail: summit at top
+
   html += '<div class="gamegrid"><div class="col-l"><div class="trail">';
   for (let i = 4; i >= 0; i--) {
-    const c = s.camps[i], lb = G.campLb(s, i), tr = G.theftRisk(s, i), av = G.avalancheRisk(s, i);
+    const c = s.camps[i], tr = G.theftRisk(s, i), av = G.avalancheRisk(s, i);
     const b = [];
-    if (i === s.pos) b.push('<span class="badge safe">You sleep here: guarded</span>');
-    else if (s.guard === i || (i === 1 && s.seen.protected)) b.push('<span class="badge safe">Watched</span>');
-    if (c.cards.length && i !== s.pos) b.push(`<span class="badge ${tr ? 'risk' : 'safe'}">Theft ${Math.round(tr * 100)}%${G.campHas(s, i, 'rifle') ? ' (rifle)' : ''}</span>`);
-    if (G.CAMPS[i].aval) b.push(`<span class="badge snow">Snow <span class="meter">${Array.from({ length: 8 }, (_, j) => `<i class="${j < s.snowLoad[i] ? 'on' : ''}"></i>`).join('')}</span> avalanche ${Math.round(av * 100)}%</span>`);
-    if (c.cards.length && i !== s.pos) b.push(G.campHas(s, i, 'tarp') ? '<span class="badge safe">Tarp</span>' : '<span class="badge risk">Uncovered</span>');
-    if (c.buried.length) b.push(`<span class="badge risk">${c.buried.length} buried</span>`);
+    if (i === s.pos) b.push('<span class="badge safe">You: guarded</span>');
+    else if (T.cache && (s.guard === i || (i === 1 && s.seen.protected))) b.push('<span class="badge safe">Watched</span>');
+    else if (T.cache && c.cards.length && i !== s.pos) b.push(`<span class="badge ${tr ? 'risk' : 'safe'}">${tr ? (T.hazard ? 'At risk · theft ' + Math.round(tr * 100) + '%' : 'At risk') : 'Safe tonight'}${G.campHas(s, i, 'rifle') ? ' · rifle' : ''}</span>`);
+    if (T.hazard && G.CAMPS[i].aval) b.push(`<span class="badge snow">Snow <span class="meter">${Array.from({ length: 8 }, (_, j) => `<i class="${j < s.snowLoad[i] ? 'on' : ''}"></i>`).join('')}</span>${av ? ' avalanche ' + Math.round(av * 100) + '%' : ''}</span>`);
+    if (T.cache && c.cards.length && i !== s.pos) b.push(G.campHas(s, i, 'tarp') ? '<span class="badge safe">Tarp</span>' : '<span class="badge risk">Uncovered</span>');
+    if (c.buried.length) b.push(`<span class="badge risk">Buried</span>`);
     const gear = ['tent', 'stove', 'tarp', 'rifle'].filter(k => G.campHas(s, i, k)).map(k => `<img class="gi" src="assets/cards/${k}.webp" alt="${k}" title="${G.DEFS[k].name}">`).join('');
-    html += `<div class="camp paper ${i === s.pos ? 'here' : ''}" id="camp${i}"><div class="row"><span class="name">${esc(G.CAMPS[i].name)}${i === s.pos ? '<span class="you">YOU</span>' : ''}</span><span class="lb">${gear} ${c.cards.length} loads · ${lb.toLocaleString()} lb</span></div><div class="badges">${b.join('')}</div></div>`;
-    if (i > 0) { const L = G.LEGS[i - 1]; html += `<div class="leg">▲ <b>${L.name}</b>: ${L.loads} loads/day, ${L.cost} stamina${L.sled ? ', sled helps' : ''}${L.snowy ? ', snowy' : ''}${L.stairs ? ', closed in storms' : ''}</div>`; }
+    const dest = s.pos < 4 && i === s.pos + 1;
+    html += `<div class="camp paper ${i === s.pos ? 'here' : ''} ${dest ? 'dest' : ''}" id="camp${i}"><div class="row"><span class="name">${esc(G.CAMPS[i].name)}${i === s.pos ? '<span class="you">YOU</span>' : ''}</span><span class="lb">${gear}${pile(c.cards.length)}</span></div><div class="badges">${b.join('')}</div></div>`;
+    if (i > 0) html += `<div class="leg">▲ ${esc(G.LEGS[i - 1].name)}</div>`;
   }
   html += '</div></div><div class="col-r">';
-  // action panel
-  html += `<div class="panel paper">${coach(cap, cost)}`;
+
+  html += `<div class="panel paper">${coach(T)}`;
   if (s.pos < 4) {
     const to = G.CAMPS[s.pos + 1].name;
-    html += `<div><b>At ${esc(G.CAMPS[s.pos].name)}.</b> ${here.cards.length ? `Haul up ${G.LEGS[s.pos].name} to ${esc(to)}: up to <b>${cap} loads</b> today, costs <b>${cost} stamina</b>.` : 'No loads here.'}</div>`;
     if (here.cards.length) {
-      const types = {}; for (const id of here.cards) { const k = s.cards[id].k; (types[k] ||= []).push(id); }
-      html += '<div class="cards">' + Object.entries(types).map(([k, arr]) => {
-        const d = G.DEFS[k], n = pack[k] || 0, lb = arr.reduce((a, id) => a + s.cards[id].w, 0);
-        return `<div class="ctype ${n ? 'packed' : ''}" data-k="${k}"><span class="art" style="background-image:url(assets/cards/${ART[k]}.webp)"></span><div class="t"><span>${esc(d.name)}</span><span class="sub">×${arr.length}</span></div>${d.text !== 'Food.' || lb !== arr.length * 50 ? `<div class="d">${d.text !== 'Food.' ? esc(d.text) : 'Food.'}${lb !== arr.length * 50 ? ` (${lb} lb)` : ''}</div>` : ''}${d.use ? `<button class="small burn" data-u="${k}" title="Burns 50 lb">Burn · ${esc(d.use)}</button>` : ''}<div class="ctl"><button class="small" data-m="${k}" ${n ? '' : 'disabled'}>−</button><span class="n">${n}</span><button class="small" data-p="${k}" ${n < arr.length && ids.length < cap ? '' : 'disabled'}>+</button></div></div>`;
-      }).join('') + '</div>';
-      html += `<div class="packbar"><span>Pack: <b>${ids.length}/${cap}</b> loads · ${ids.reduce((a, id) => a + s.cards[id].w, 0)} lb</span><button class="small" id="auto">Auto-pack</button><button class="small" id="clear" ${ids.length ? '' : 'disabled'}>Clear</button></div>`;
       const effIds = ids.length ? ids : G.autoPack(s, 'origin');
-      const left = here.cards.length - effIds.length, frm = esc(G.CAMPS[s.pos].name);
-      const riskO = Math.round(G.CAMPS[s.pos + 1].theft * 100), riskD = Math.round(G.CAMPS[s.pos].theft * 100);
-      html += `<div class="sub" style="margin-top:6px"><b>Return</b>: you guard the ${left} loads left at ${frm}. The new pile at ${esc(to)} is exposed (~${riskO}% theft${s.day < 3 ? ', but not before day 3' : ''}).<br><b>Camp up</b>: you guard ${esc(to)}. ${left > 0 ? `The ${left} loads left at ${frm} are exposed (~${riskD}% theft) and you walk back down tomorrow (1 stamina).` : 'Nothing is left behind.'}</div>`;
-      bar = { canHaul: s.stamina >= cost && cap > 0, empties: effIds.length === here.cards.length, frm, to: esc(to), n: effIds.length, cost };
+      const n = effIds.length;
+      const trips = cap > 0 ? Math.ceil(here.cards.length / cap) : 0;
+      const preview = effIds.slice(0, 5);
+      html += `<div class="haulstat">At ${esc(G.CAMPS[s.pos].name)} → ${esc(to)}
+        <span class="trips">About ${trips} trip${trips === 1 ? '' : 's'} to empty this camp</span></div>`;
+      html += `<div class="todayfan" aria-hidden="true">${preview.map((id, i) => {
+        const k = s.cards[id].k, r = (i - (preview.length - 1) / 2) * 9;
+        return `<div class="tc" style="background-image:url(assets/cards/${ART[k]}.webp);--r:${r}deg;--y:${Math.abs(r) * 0.4}px"></div>`;
+      }).join('')}</div>`;
+      if (packingOn()) {
+        const types = {}; for (const id of here.cards) { const k = s.cards[id].k; (types[k] ||= []).push(id); }
+        html += '<div class="cards compact">' + Object.entries(types).map(([k, arr]) => {
+          const d = G.DEFS[k], pn = pack[k] || 0;
+          return `<div class="ctype compact ${pn ? 'packed' : ''}" data-k="${k}"><span class="art" style="background-image:url(assets/cards/${ART[k]}.webp)"></span><div class="t"><span>${esc(d.name)}</span><span class="sub">×${arr.length}</span></div>${d.use ? `<button class="small burn" data-u="${k}">Use</button>` : ''}<div class="ctl"><button class="small" data-m="${k}" ${pn ? '' : 'disabled'}>−</button><span class="n">${pn}</span><button class="small" data-p="${k}" ${pn < arr.length && ids.length < cap ? '' : 'disabled'}>+</button></div></div>`;
+        }).join('') + '</div>';
+        html += `<div class="packbar"><button class="small" id="auto">Auto-pack</button><button class="small" id="clear" ${ids.length ? '' : 'disabled'}>Clear</button></div>`;
+      }
+      // ghost preview on next camp is injected after as a data attr; also a line here
+      bar = { canHaul: s.stamina >= cost && cap > 0, empties: (ids.length ? ids : G.autoPack(s, 'origin')).length === here.cards.length, frm: esc(G.CAMPS[s.pos].name), to: esc(to), n, cost };
+    } else {
+      html += `<div class="haulstat">At ${esc(G.CAMPS[s.pos].name)}.<br>Nothing left to carry here.</div>`;
     }
-  } else { const ok = !ins.shortLb && !ins.shortFood && !ins.missing.length; html += `<div><b>At the Chilkoot Summit.</b> The Mounties will weigh everything here. ${ok ? '<b style="color:var(--good)">You would pass inspection right now.</b>' : `<b style="color:var(--bad)">Right now you'd fail:</b> ${ins.shortLb ? ins.shortLb + ' lb short' : ''}${ins.shortFood ? (ins.shortLb ? ', ' : '') + ins.shortFood + ' lb food short' : ''}${ins.missing.length ? (ins.shortLb || ins.shortFood ? ', ' : '') + 'missing ' + ins.missing.map(k => G.DEFS[k].name).join(', ') : ''}. ${ins.behind ? ins.behind + ' lb is still down the trail.' : ''}`}</div>`; }
+  } else {
+    const ok = !ins.shortLb && !ins.shortFood && !ins.missing.length;
+    html += `<div class="haulstat">At the Summit.</div><div>${ok ? '<b style="color:var(--good)">The Mounties would let you through.</b>' : `<b style="color:var(--bad)">Not yet.</b> ${ins.behind ? 'Goods are still down the trail.' : 'The outfit is short.'}`}</div>`;
+  }
+
   const L = G.legal(s), has = t => L.find(a => a.type === t);
   const more = [];
   if (s.pos === 4) more.push(`<button class="primary" id="mounties">Face the Mounties</button>`);
-  more.push(`<button id="rest">Rest a day (+3 stamina)</button>`);
-  if (has('work')) more.push(`<button id="work" ${has('work').ok ? '' : 'disabled'}>Pack for others: +$10 (a day, 3 stamina)</button>`);
-  if (has('dig')) more.push(`<button id="dig" ${has('dig').ok ? '' : 'disabled'}>Dig out (a day, 2 stamina)</button>`);
-  if (has('back')) more.push(`<button id="back" ${has('back').ok ? '' : 'disabled'}>Walk down (1 stamina)</button>`);
-  if (has('up') && s.pos < 4) more.push(`<button id="up" ${has('up').ok ? '' : 'disabled'}>Walk up empty (1 stamina)</button>`);
-  if (has('tram')) more.push(`<button id="tram" ${has('tram').ok && (ids.length || here.cards.length) ? '' : 'disabled'}>Tramway: ${ids.length ? ids.length + ' packed' : 'up to 6'} loads ($6 each)</button>`);
-  if (has('packers')) more.push(`<button id="packers" ${has('packers').ok ? '' : 'disabled'}>${s.packers ? 'Dismiss packers' : 'Hire packers ($15, $10/haul)'}</button>`);
-  if (has('guard')) more.push(`<button id="guard" ${has('guard').ok ? '' : 'disabled'}>${s.guard === s.pos ? 'Dismiss watchman' : s.guard !== null ? 'Move watchman here' : 'Hire watchman here ($5/night away)'}</button>`);
-  html += `<div class="more">${more.join('')}</div></div>`;
-  if (bar) html += `<div class="dock"><button id="auto2" class="small">Auto-<br>pack</button>
-    <button class="primary" id="haulO" ${bar.canHaul && !bar.empties ? '' : 'disabled'}>Haul ${bar.n} &amp; return<br><small>sleep at ${bar.frm} · −${bar.cost} stamina</small></button>
-    <button class="primary" id="haulD" ${bar.canHaul ? '' : 'disabled'}>Haul ${bar.n} &amp; camp up<br><small>sleep at ${bar.to} · −${bar.cost} stamina</small></button></div>`;
-  else if (s.pos === 4 && !s.over) html += `<div class="dock"><button class="primary" id="mounties2" style="grid-column:1/-1">Face the Mounties</button></div>`;
-  // log
-  const recent = s.log.slice(-10).reverse();
-  html += `<div class="log paper"><h2>Trail Diary</h2>${recent.map(l => `<div class="${l.tone}">Day ${l.day}: ${esc(l.msg)}</div>`).join('')}</div>`;
-  html += `<p class="foot">Seed ${s.seed} · ${esc(G.CHARACTERS[s.charKey].name)} · <a href="#" id="abandon">Abandon run</a></p>${howTo()}</div></div>`;
+  if (bar && bar.canHaul) more.push(`<button id="rest">Rest</button>`);
+  if (has('work')) more.push(`<button id="work" ${has('work').ok ? '' : 'disabled'}>Work for cash</button>`);
+  if (has('dig')) more.push(`<button id="dig" ${has('dig').ok ? '' : 'disabled'}>Dig out</button>`);
+  if (has('back')) more.push(`<button id="back" ${has('back').ok ? '' : 'disabled'}>Walk down</button>`);
+  if (has('up') && s.pos < 4) more.push(`<button id="up" ${has('up').ok ? '' : 'disabled'}>Walk up empty</button>`);
+  if (T.tram && has('tram')) more.push(`<button id="tram" ${has('tram').ok && (ids.length || here.cards.length) ? '' : 'disabled'}>Send by tramway</button>`);
+  if (T.packers && has('packers')) more.push(`<button id="packers" ${has('packers').ok ? '' : 'disabled'}>${s.packers ? 'Dismiss packers' : 'Hire packers'}</button>`);
+  if (T.cache && has('guard')) more.push(`<button id="guard" ${has('guard').ok ? '' : 'disabled'}>${s.guard === s.pos ? 'Dismiss watchman' : s.guard !== null ? 'Move watchman here' : 'Hire a watchman'}</button>`);
+  if (here.cards.length && s.pos < 4) more.push(`<button id="togglePack">${packingOn() ? 'Hide loads' : 'Choose loads'}</button>`);
+  more.push(`<button id="showLog">Trail diary</button>`);
+  more.push(`<a href="#" id="abandon">Abandon run</a>`);
+  html += `<div class="moresheet ${moreOpen ? '' : 'hidden'}" id="moresheet">${more.join('')}${howTo()}</div></div>`;
+
+  if (bar && bar.canHaul) html += `<div class="dockhint">Today's load goes to ${bar.to}</div>
+    <div class="dock"><button class="primary" id="haulO" ${!bar.empties ? '' : 'disabled'}>Haul and return</button>
+    <button class="primary" id="haulD">Haul and camp</button>
+    <button id="moreBtn">More</button></div>`;
+  else if (s.pos === 4 && !s.over) html += `<div class="dock solo"><button class="primary" id="mounties2">Face the Mounties</button><button id="moreBtn">More</button></div>`;
+  else html += `<div class="dockhint">${s.weather[0] === 'storm' && s.pos === 3 ? 'The Golden Stairs are closed in the storm.' : s.stamina < (bar ? bar.cost : 2) ? 'Too tired to haul.' : ''}</div>
+    <div class="dock solo"><button class="primary" id="rest">Rest</button><button id="moreBtn">More</button></div>`;
+
+  const recent = s.log.slice(-8).reverse();
+  html += `<div class="log paper hidden" id="diary"><h2>Trail Diary</h2>${recent.map(l => `<div class="${l.tone}">Day ${l.day}: ${esc(l.msg)}</div>`).join('')}</div>`;
+  html += `</div></div>`;
   app.innerHTML = html;
-  // wire
+
+  // ghost +N on destination
+  if (bar && bar.n) {
+    const dest = document.getElementById('camp' + (s.pos + 1));
+    if (dest) {
+      const lb = dest.querySelector('.lb') || dest;
+      const g = document.createElement('span'); g.className = 'ghost'; g.textContent = '+' + bar.n + ' loads';
+      lb.appendChild(g);
+    }
+  }
+
   app.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const k = b.dataset.p; pack[k] = (pack[k] || 0) + 1; A.sfx('slide', 0.55); render(); const el = app.querySelector(`.ctype[data-k="${k}"]`); el && el.classList.add('pop'); });
   app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { A.sfx('place', 0.4); pack[b.dataset.m]--; if (!pack[b.dataset.m]) delete pack[b.dataset.m]; render(); });
   const on = (id, f) => { const e = document.getElementById(id); if (e) e.onclick = f; };
@@ -224,7 +316,17 @@ function render() {
   const hp = sl => { const p = packIds(); return p.length ? p : G.autoPack(s, sl); };
   on('haulO', () => doAct({ type: 'haul', ids: hp('origin'), sleep: 'origin' }));
   on('haulD', () => doAct({ type: 'haul', ids: hp('dest'), sleep: 'dest' }));
-  on('auto2', () => { setPackFromIds(G.autoPack(s, 'origin')); A.sfx('fan', 0.6); render(); });
+  on('moreBtn', () => {
+    moreOpen = !moreOpen; A.sfx('flip', 0.4);
+    const m = document.getElementById('moresheet');
+    if (m) m.classList.toggle('hidden', !moreOpen);
+  });
+  on('togglePack', () => { packOpen = !packingOn(); A.sfx('place', 0.4); moreOpen = true; render(); });
+  on('showLog', () => {
+    moreOpen = true; A.sfx('flip', 0.3);
+    const m = document.getElementById('moresheet'); if (m) m.classList.remove('hidden');
+    const d = document.getElementById('diary'); if (d) { d.classList.remove('hidden'); d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  });
   on('mounties2', () => doAct({ type: 'mounties' }));
   app.querySelectorAll('[data-u]').forEach(b => b.onclick = () => doAct({ type: 'use', k: b.dataset.u }));
   on('rest', () => doAct({ type: 'rest' }));
@@ -267,9 +369,10 @@ function finish() {
   <p class="sub">${s.over.win ? 'Next in the full game: Lake Bennett. Whipsaw a boat and race the Yukon freeze to Dawson.' : 'Tip: ' + tipFor(s)}</p>
   <div class="opts"><button class="primary" id="again">One more run</button><button id="same">Replay this seed (${s.seed})</button></div>`;
   FX.stamp(sheet, s.over.win ? 'ADMITTED' : /winter/.test(s.over.reason) ? 'SNOWED IN' : 'TURNED BACK', s.over.win ? 'good' : 'bad');
-  A.sfx(s.over.win ? 'good' : 'bad', 0.8); setTimeout(() => A.sfx('thud', 0.9), 300);
+  A.sfx('thud', 0.85);
+  A.sting(s.over.win ? 'win' : 'lose', 0.9);
   $('#again').onclick = () => { modal.classList.add('hidden'); s = null; selectChar(); };
-  $('#same').onclick = () => { modal.classList.add('hidden'); const c = s.charKey, seed = s.seed; s = G.newGame(seed, c); screen = 'game'; render(); outfitter(); };
+  $('#same').onclick = () => { modal.classList.add('hidden'); const c = s.charKey, seed = s.seed; s = G.newGame(seed, c); screen = 'game'; packOpen = null; render(); outfitter(); };
 }
 function tipFor(s) {
   const st = s.stats;

@@ -38,3 +38,22 @@ export function floatText(anchor, text, tone = 'bad') {
 export function stamp(container, text, tone) {
   const d = document.createElement('div'); d.className = 'stamp ' + tone; d.textContent = text; container.appendChild(d);
 }
+
+export function haulFly(fromEl, toEl, n = 5) {
+  if (reduce || !fromEl || !toEl) return;
+  const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+  const count = Math.min(8, Math.max(3, n));
+  for (let i = 0; i < count; i++) {
+    const d = document.createElement('div');
+    d.className = 'cratefly';
+    const x0 = a.left + a.width * (0.4 + Math.random() * 0.25);
+    const y0 = a.top + a.height * 0.45;
+    d.style.left = x0 + 'px';
+    d.style.top = y0 + 'px';
+    d.style.setProperty('--dx', ((b.left + b.width * 0.55) - x0) + 'px');
+    d.style.setProperty('--dy', ((b.top + b.height * 0.45) - y0) + 'px');
+    d.style.animationDelay = (i * 0.07) + 's';
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 1000 + i * 70);
+  }
+}

@@ -3,6 +3,17 @@ import { chromium } from 'playwright';
 const URL = process.env.URL || 'http://localhost:8765/';
 const runs = [{ name: 'phone', vp: { width: 390, height: 844 }, char: 'greenhorn', seed: 42 }, { name: 'desktop', vp: { width: 1280, height: 900 }, char: 'partners', seed: 7 }];
 const browser = await chromium.launch();
+
+async function tap(page, sel) {
+  const vis = async s => (await page.$(s)) && await page.isVisible(s) && await page.isEnabled(s);
+  if (await vis(sel)) { await page.click(sel); return true; }
+  if (await page.$('#moreBtn')) {
+    await page.evaluate(() => document.getElementById('moreBtn')?.click());
+    await page.waitForTimeout(150);
+    if (await vis(sel)) { await page.click(sel); return true; }
+  }
+  return false;
+}
 let fail = 0;
 for (const r of runs) {
   const page = await browser.newPage({ viewport: r.vp });
@@ -29,19 +40,19 @@ for (const r of runs) {
         const labels = await Promise.all(btns.map(b => b.innerText()));
         let i = labels.findIndex(l => /^Buy/.test(l)); if (i < 0) i = labels.findIndex(l => /^Not yet/.test(l)); if (i < 0 || st.day >= 35) i = labels.findIndex(l => /Slip|Give up/.test(l));
         await btns[i].click();
-        if (/^Not yet/.test(labels[i]) && !st.behind) { if (await vis('#work')) await page.click('#work'); else await page.click('#rest'); }
+        if (/^Not yet/.test(labels[i]) && !st.behind) { if (!(await tap(page, '#work'))) await tap(page, '#rest'); }
         continue;
       }
       await btns[0].click(); continue;
     }
-    if (st.buried && await vis('#dig')) { await page.click('#dig'); continue; }
+    if (st.buried && await tap(page, '#dig')) continue;
     if (st.pos === 4 && !st.behind) { await page.click('#mounties2'); continue; }
     if (st.day === 6 && !shotBurn && await vis('[data-u]')) { shotBurn = true; await page.click('[data-u]'); }
-    if (!st.here && st.behind) { if (await vis('#back')) await page.click('#back'); else await page.click('#rest'); continue; }
-    if (!st.here && !st.behind && st.pos < 4) { if (await vis('#up')) await page.click('#up'); else await page.click('#rest'); continue; }
+    if (!st.here && st.behind) { if (!(await tap(page, '#back'))) await tap(page, '#rest'); continue; }
+    if (!st.here && !st.behind && st.pos < 4) { if (!(await tap(page, '#up'))) await tap(page, '#rest'); continue; }
     if (await vis('#haulO')) { await page.click('#haulO'); continue; }
     if (await vis('#haulD')) { await page.click('#haulD'); continue; }
-    await page.click('#rest');
+    await tap(page, '#rest');
   }
   await page.waitForTimeout(300);
   await page.screenshot({ path: `shots/${r.name}-5-end.png` });
@@ -71,16 +82,16 @@ for (const r of runs) {
   while (steps++ < 300) {
     const st = await page.evaluate(() => { const s = window.__tog.state; return s && { over: !!s.over, ev: s.event?.key, pos: s.pos, day: s.day, here: s.camps[s.pos].cards.length, left: s.camps[s.pos].cards.length, buried: s.camps[s.pos].buried.length, behind: [0,1,2,3].some(i => i < s.pos && (s.camps[i].cards.length || s.camps[i].buried.length)), st: s.stamina }; });
     if (!st || st.over) break;
-    if (st.ev) { const btns = await page.$$('#sheet [data-i]:not([disabled])'); const labels = await Promise.all(btns.map(b => b.innerText())); let i = labels.findIndex(l => /^Buy|Hire|Join|Good/.test(l)); if (i < 0) i = labels.findIndex(l => /^Not yet/.test(l)); if (i < 0) i = 0; await btns[i].click(); if (/^Not yet/.test(labels[i]) && !st.behind) { if (await vis('#work')) await page.click('#work'); else await page.click('#rest'); } continue; }
-    if (st.buried && await vis('#dig')) { await page.click('#dig'); continue; }
+    if (st.ev) { const btns = await page.$$('#sheet [data-i]:not([disabled])'); const labels = await Promise.all(btns.map(b => b.innerText())); let i = labels.findIndex(l => /^Buy|Hire|Join|Good/.test(l)); if (i < 0) i = labels.findIndex(l => /^Not yet/.test(l)); if (i < 0) i = 0; await btns[i].click(); if (/^Not yet/.test(labels[i]) && !st.behind) { if (!(await tap(page, '#work'))) await tap(page, '#rest'); } continue; }
+    if (st.buried && await tap(page, '#dig')) continue;
     if (st.pos === 4 && !st.behind) { await page.click('#mounties2'); continue; }
-    if (!st.here && st.behind) { if (await vis('#back')) await page.click('#back'); else await page.click('#rest'); continue; }
-    if (!st.here && st.pos < 4) { if (await vis('#up')) await page.click('#up'); else await page.click('#rest'); continue; }
-    if (st.st < 5) { await page.click('#rest'); continue; }
-    if (st.pos === 3 && await vis('#tram')) { await page.click('#tram'); continue; }
+    if (!st.here && st.behind) { if (!(await tap(page, '#back'))) await tap(page, '#rest'); continue; }
+    if (!st.here && st.pos < 4) { if (!(await tap(page, '#up'))) await tap(page, '#rest'); continue; }
+    if (st.st < 5) { await tap(page, '#rest'); continue; }
+    if (st.pos === 3 && await tap(page, '#tram')) continue;
     if (await vis('#haulO')) { await page.click('#haulO'); continue; }
     if (await vis('#haulD')) { await page.click('#haulD'); continue; }
-    await page.click('#rest');
+    await tap(page, '#rest');
   }
   // Then: load a real bot-won state (just before inspection) as the saved run and finish via the UI.
   await page.evaluate(async () => { const m = await import('./test/personas.mjs');

@@ -1,4 +1,4 @@
-// Ton of Goods prototype: pure game logic (runs in browser and Node).
+// Ton or Starve prototype: pure game logic (runs in browser and Node).
 export const GOAL_LB = 2000, FOOD_REQ = 900, CARD_LB = 50;
 
 export const CAMPS = [

@@ -129,3 +129,43 @@ Fixes: snow moved above the art. A fanned hand of three engraved 50 LB cards dea
 **Honest gap vs. the comps:** the title screen is now in the same visual tier as a polished indie. The in-game screen is styled but still a structured menu: there's no animated card play like Balatro or Slay the Spire, no illustrated map, and no music. That is the next pass after Bryan plays the loop.
 
 Screenshots: `shots/title-phone.png`, `shots/title-desktop.png`, `shots/select-phone.png`, `shots/select-desktop.png`, `shots/game-phone.png`, `shots/game-desktop.png`.
+
+---
+
+# Opening-clarity pass (after Bryan: "very complicated... somewhat overwhelming")
+
+Bryan also asked that simplifying must not look cheap or boring, and that the game "needs some sound" and should feel worth $12.99. Game rules are unchanged.
+
+All personas below are **SIMULATED**. They are not real players. Judgments come from scripted button/number counts on the real UI, frame-by-frame screenshot review of the first 3 turns (phone 390×844 and desktop 1280×900, seed 4242), and a wiring check of the audio system. They cannot hear the mix; "sound pleasant" is a judgment of the design, not a listening session.
+
+## What changed
+- The name on the title, page `<title>`, meta tags, README and in-game chrome is **Ton or Starve**. The painted key art had no baked-in title, so the logo was re-set in the same Rye / Fell SC stacked style: TON / OR / STARVE.
+- First camp (Dyea) shows **one decision**: haul a day's auto-packed load, then **Haul and return** or **Haul and camp**. Secondary actions (rest, work, packers, tram, watchman, choose loads, diary) sit behind a single **More** button. Choosing loads, burns, theft percentages and snow meters unlock as you reach later camps, each with a one-line tooltip (cache, then packers, then hazards, then the tram).
+- The game does the arithmetic. Visible results: a brass Summit gauge, crate piles, a "+10 loads" preview on the next camp, an "About N trips to empty this camp" estimate, stamina pips, and floating ±lb after a haul. Players are never asked to add weights.
+- Polish stayed up as clutter came down: painted key art, parchment, engraved card fan of today's load, brass gauge, crate-fly + pack-thud juice, screen shake, avalanche rumble.
+- Sound: Kenney CC0 SFX were already in the tree but could miss the first tap (buffers were fetched only after unlock). They now prefetch, and a looping synthesized title/in-game music bed plus win/lose stings (CC0, made for this prototype) start on the first user tap, with ambient wind and a visible mute toggle. Credits are in the README.
+
+## Before / after (first 3 turns, same seed, viewport counts of visible buttons and visible numerals)
+
+| Screen | Before buttons | After buttons | Before numbers | After numbers | Before text chars | After text chars |
+|---|---:|---:|---:|---:|---:|---:|
+| Phone turn 1 | 13 | 4 | 45 | 4 | 1010 | 408 |
+| Phone turn 2 | 13 | 4 | 49 | 6 | 1040 | 440 |
+| Phone turn 3 | 9 | 4 | 51 | 8 | 1191 | 407 |
+| Desktop turn 1 | 45 | 4 | 81 | 4 | 2021 | 408 |
+| Desktop turn 2 | 42 | 4 | 87 | 6 | 2160 | 440 |
+| Desktop turn 3 | 40 | 4 | 90 | 8 | 2286 | 407 |
+
+After counts include the mute toggle. The 2 primary verbs plus More are the only game actions on screen. Extra after-numbers on turns 2–3 are result feedback (floating ±lb, the shrinking trips estimate), not sums the player has to do. A new player can make the first 3 moves without doing any math: tap one of the two haul buttons.
+
+## Simulated persona review
+
+| Persona (simulated) | First 3 turns | Looks premium vs cheap | Fun vs boring | Sound present and pleasant |
+|---|---|---|---|---|
+| First-time casual player | Would not bounce on "too many buttons / too much math." One coach line, two plain verbs, trips-left already calculated. | Title reads as a real indie. In-game is parchment and painted mountain, not a spreadsheet. Still clearly a prototype (AI key art, no illustrated map). | The return-vs-camp choice is understandable without a lecture, and the pile / +loads preview makes progress feel good. Three similar hauls could get samey, but the trips count ticks down. | Mute is obvious. Music + wind are designed to start on the first tap; this persona did not literally listen. |
+| Strategy fan | Early game is simpler than they want, on purpose. More holds packers, work, the watchman; later camps bring choosing loads, burns, snow and the tram, with tooltips. Depth is still in the rules. | Period type and engraved cards still feel consistent with the title. The quieter first screen shows more of the painting, which helps. | Not boring if they accept a short on-ramp. They will open More by camp 2 and start optimizing caches. Theft % is delayed until hazards unlock — a real tradeoff. | Satisfying pack thud and crate-fly on haul; avalanche rumble and win/lose stings are wired for later. |
+| Mobile player | Three large dock buttons fit a thumb. No +/− grid, no fire-hose of camp math. | Phone title and first turn look finished enough to screenshot. Status pips and piles replace cramped number chips. | Easy to take the first turn one-handed. Card fan still says "this is a card game." | Mute sits in the same corner as before and is tappable. |
+
+**Honest leftover:** the in-game screen is still a structured menu, not animated card play. Desktop shows a handsome haul tableau over a dark stretch of mountain above the dock — atmospheric, but not as dense as a $12.99 release screen will need to be. There is no licensed recorded score, only a synthesized bed and Kenney SFX. No real playtesters have heard it yet.
+
+Screenshots: `shots/title-phone.png`, `shots/title-desktop.png`, `shots/first-turn-phone.png`, `shots/first-turn-desktop.png`.
