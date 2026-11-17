@@ -9,7 +9,8 @@ for (const r of runs) {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(URL + '?seed=' + r.seed); await page.evaluate(() => localStorage.clear()); await page.reload();
-  await page.screenshot({ path: `shots/${r.name}-0-title.png`, fullPage: false });
+  await page.waitForTimeout(3200); await page.screenshot({ path: `shots/${r.name}-0-title.png`, fullPage: false });
+  await page.click('#begin'); await page.waitForTimeout(900); await page.screenshot({ path: `shots/${r.name}-0b-select.png` });
   await page.click(`[data-c="${r.char}"]`);
   await page.screenshot({ path: `shots/${r.name}-1-outfitter.png` });
   await page.click('[data-k="sled"]'); await page.click('[data-k="food"]');
@@ -48,7 +49,7 @@ for (const r of runs) {
   console.log(r.name, 'steps', steps, JSON.stringify(end), 'errors', errors.length ? errors : 'none');
   if (errors.length || !end.over || !end.endShown) fail++;
   // replay flow works
-  await page.click('#again'); if (!(await page.$('[data-c="greenhorn"]'))) { console.log('restart failed'); fail++; }
+  await page.click('#again'); await page.waitForTimeout(400); if (!(await page.$('[data-c="greenhorn"]'))) { console.log('restart failed'); fail++; }
   await page.close();
 }
 // Win-path check: a careful bot plays the real logic in the page until the summit, then the UI handles the Mounties and win screen.
@@ -60,7 +61,7 @@ for (const r of runs) {
     const m = await import('./test/personas.mjs');
     for (let seed = 1; seed < 60; seed++) { const r = m.playRun(seed * 104729, 'historian'); if (r.s.over?.win) return seed * 104729; }
   });
-  await page.goto(URL + '?seed=' + res); await page.click('[data-c="sourdough"]'); await page.click('[data-k="food"]'); await page.click('#go');
+  await page.goto(URL + '?seed=' + res); await page.click('#begin'); await page.click('[data-c="sourdough"]'); await page.click('[data-k="food"]'); await page.click('#go');
   // replay the same bot decisions live through the UI module's state object
   await page.evaluate(async () => { const m = await import('./test/personas.mjs'); const G = window.__tog.G; const s = window.__tog.state;
     const r = m.playRun(s.seed, 'historian'); window.__winDays = r.s.day; });
@@ -84,7 +85,7 @@ for (const r of runs) {
   // Then: load a real bot-won state (just before inspection) as the saved run and finish via the UI.
   await page.evaluate(async () => { const m = await import('./test/personas.mjs');
     for (let seed = 1; seed < 200; seed++) { const r = m.playRun(seed * 104729, 'historian'); if (r.s.over?.win && /Welcome/.test(r.s.over.reason)) { r.s.over = null; r.s.event = null; r.s.flash = []; localStorage.setItem('tog_run', JSON.stringify(r.s)); return; } } });
-  await page.goto(URL); await page.click('#cont'); await page.screenshot({ path: 'shots/win-path-summit.png' });
+  await page.goto(URL); await page.click('#begin'); await page.click('#cont'); await page.screenshot({ path: 'shots/win-path-summit.png' });
   await page.click('#mounties2');
   await page.waitForTimeout(300); await page.screenshot({ path: 'shots/win-path-end.png' });
   const end = await page.evaluate(() => ({ over: window.__tog.state?.over, day: window.__tog.state?.day, endShown: !!document.querySelector('#again') }));

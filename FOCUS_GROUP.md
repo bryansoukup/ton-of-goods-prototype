@@ -92,3 +92,40 @@ Run length: about 30-36 in-game days and 40-65 taps on decisions, an estimated 1
 - **Is burning cards tempting or ignored?** Bots burn only by rule.
 - **"One more run" pull.** There's no meta-progression yet: only 3 characters, seeds and a best score.
 - Phone ergonomics with real thumbs: the +/− buttons are small.
+
+---
+
+# Visual pass: first impression (after Bryan's "looks cheap and boring" on the title/load screen)
+
+Scope set by Bryan: fix the first 10 seconds and the art direction. Loop changes stay modest, and **game rules are unchanged** (sim results identical within noise: careful 81%, aggressive 61%, casual 37%, gambler 26%).
+
+Method: the same 4 SIMULATED personas judged phone (390×844) and desktop screenshots of the real build, frame by frame, against what the title/menu screens of Slay the Spire, Balatro and Inscryption are known for:
+- **Slay the Spire:** a clear painted logo over a living scene, with a single obvious button.
+- **Balatro:** constant motion and juice. Cards are visible immediately, so you know the genre in a second.
+- **Inscryption:** a moody, mysterious mood, period texture and sound design that sets the tone before you click.
+
+These are comparisons from memory of those games' well-known title screens. I did not capture fresh store screenshots.
+
+## Visual round 1: first art pass
+Changes: painted key art (a line of stampeders on the Golden Stairs in a storm, with separate wide and tall crops), a gold Rye-type logo with a staged reveal, a one-line hook ("The Mounties demand a ton. You can carry fifty pounds."), slow camera drift, canvas snowfall, synthesized ambient wind plus Kenney CC0 SFX, painted character portraits, engraved card illustrations, parchment UI, period fonts, screen shake and rumble on avalanches, floating ±lb numbers, a brass weight gauge, and ADMITTED / TURNED BACK / SNOWED IN stamps.
+
+| Persona (simulated) | Verdict | Top complaint |
+|---|---|---|
+| Casual Steam browser (decides in 2 min) | "This looks like a real game now." The hook line is understood instantly | The button appears only after 2+ seconds of fades |
+| Roguelite/deckbuilder fan | Mood and logo are on par with Inscryption-tier indies | "Nothing says *card game*. Balatro shows cards immediately." |
+| Strategy/history fan | Loves the period type, portraits and Tlingit/Mountie framing | In game, emoji icons (🦝⛺💪) clash with the engraved style and break the period feel |
+| Streamer | The storm and the line of climbers is a strong thumbnail | The snow canvas was hidden behind the art (bug). The ribbon covered the Greenhorn's name on phone. The mute button overlapped the status bar |
+
+## Visual round 2: fixes and retest
+Fixes: snow moved above the art. A fanned hand of three engraved 50 LB cards deals in under the logo, so the genre reads in about 1 second. The reveal is faster (button by about 1.3 s). Every emoji in the game UI was replaced with text, engraved mini-icons and a drawn snow meter. Fixed the ribbon, the flavor font and the mute position. The phone gauge text no longer overflows. Desktop has a two-column layout (trail left, actions right) with the painted background showing through. Removed backdrop blur for phone performance.
+
+| Persona (simulated) | Verdict now | What's still missing |
+|---|---|---|
+| Casual browser | Would click. Art, hook and button all read in the first 5 seconds | Still a menu-heavy game screen once inside |
+| Deckbuilder fan | The card fan sells the genre, and the engraved cards look like a period catalogue | In game, cards are tiles with +/−, not a hand you play. No card animations yet beyond pop/float |
+| Strategy/history fan | Cohesive: painted world, engraved goods, parchment UI | Wants a map illustration for the trail instead of stacked rows |
+| Streamer | The title would make a good thumbnail. Avalanche shake and rumble give a reaction moment | No music, only wind. The in-game screen is static between hauls |
+
+**Honest gap vs. the comps:** the title screen is now in the same visual tier as a polished indie. The in-game screen is styled but still a structured menu: there's no animated card play like Balatro or Slay the Spire, no illustrated map, and no music. That is the next pass after Bryan plays the loop.
+
+Screenshots: `shots/title-phone.png`, `shots/title-desktop.png`, `shots/select-phone.png`, `shots/select-desktop.png`, `shots/game-phone.png`, `shots/game-desktop.png`.
