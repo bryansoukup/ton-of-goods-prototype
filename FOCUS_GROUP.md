@@ -169,3 +169,40 @@ After counts include the mute toggle. The 2 primary verbs plus More are the only
 **Honest leftover:** the in-game screen is still a structured menu, not animated card play. Desktop shows a handsome haul tableau over a dark stretch of mountain above the dock — atmospheric, but not as dense as a $12.99 release screen will need to be. There is no licensed recorded score, only a synthesized bed and Kenney SFX. No real playtesters have heard it yet.
 
 Screenshots: `shots/title-phone.png`, `shots/title-desktop.png`, `shots/first-turn-phone.png`, `shots/first-turn-desktop.png`.
+
+---
+
+# Map, provisioning stakes, and the $14.99 bar (November 17, 2026)
+
+All personas below are **SIMULATED**. They are not real players. Judgments come from Playwright runs of the real UI (phone 390×844 and desktop 1440×900, seed 4242), screenshot review, and the unchanged game rules. They cannot hear the mix.
+
+## What changed in this pass
+- Key art was regenerated with atmospheric perspective: 2–3 large stampeders in the foreground, the line shrinking to specks toward a towering Golden Stairs. Wide and tall crops, checked for extra limbs.
+- The stacked camp list is now a painted Chilkoot trail map (Dyea at the water, Canyon City, Sheep Camp, The Scales, the Golden Stairs, the Summit). A brass party token walks the path; the camera pans up as you climb. Caches show as numbered supply piles. Storm clouds, thief marks, avalanche zones and NPC markers are drawn in code on the painting. Mile and elevation callouts sit on the map and in a traveling caption (e.g. Sheep Camp · 13 mi · 1,000 ft). Works on phone (a shorter viewport that pans) and desktop (sticky map column).
+- Provisioning: each supply states a concrete effect and cost in plain words ("Feeds you 17 days, 50 lb, one trip"; "Where you sleep: +1 stamina a night"). Chunky **Take** / **Leave** buttons replace the − / + wall. Auto-pack lives in the panel header, not the dock, so it no longer fights **Haul and return**. Live forecasts update while you choose: dinner and warmth tonight if you return vs camp up, uncovered-cache and theft warnings, a Mountie shortfall line, Bennett boat gear. Shortfalls are in red. Outfitter cards get the same kind of forecast (food vs the 900 lb inspection, tarp coverage, the sled).
+- When a hazard resolves, the log calls back the choice without changing the dice: "Your woolens kept you warm through the storm." / "Your tarp kept the cache dry." / "No tarp: the storm ruined Flour at Dyea."
+- The Haul-and-return label no longer overlaps Auto-pack (Auto-pack moved; dock hint removed; extra bottom padding).
+
+Before pack panel: `shots/before-pack-phone.png`, `shots/before-pack-desktop.png`. After: `shots/after-pack-phone.png`, `shots/after-pack-desktop.png`. Title and first-turn shots were refreshed: `shots/title-phone.png`, `shots/title-desktop.png`, `shots/first-turn-phone.png`, `shots/first-turn-desktop.png`.
+
+## Do choices feel consequential, not guessing? (simulated)
+
+| Persona (simulated) | Consequential, not guessing? | Why |
+|---|---|---|
+| First-time casual | Yes, enough to play | Return vs camp is now two plain forecasts ("you eat at Dyea, tent and stove with you" vs the same at Canyon City). Red lines appear when a cache would be uncovered or the Mounties would turn you back. Still a lot of sacks, but they no longer feel identical. |
+| Strategy fan | Yes | The forecast names the exact risk of this pack (thieves at the cache you leave, no rifle; short 900 lb of food at the Summit; sleep without the tent). Hazard toasts name the item that saved or failed you. This is "my call," not a guess. |
+| Mobile player | Mostly | Take / Leave are thumb-sized and the effect is on the card. The pack list is long and sits under the map, so some of the forecast is above the fold and the rest of the sacks need a scroll. The dock no longer covers the buttons. |
+
+## Required questions (simulated): $14.99, fun, 3 hours
+
+Be harsh. This build is still a ~12-minute Chilkoot-only prototype of a planned four-act $14.99 game. The map, sound, key art and provision stakes improved the slice. They cannot invent Lake Bennett, the Yukon, Dawson, or three hours of new exploits.
+
+| Persona (simulated) | Would I pay $14.99 for this? | Was that fun or entertaining? | Could I do 3 hours of similar exploits? |
+|---|---|---|---|
+| First-time casual | **No.** It looks like a real indie now, and the first climb is easy to start. $14.99 is a full game. This is one handsome leg I would wishlist and wait to buy. | **Yes, mildly.** The walking token, the trip count ticking down, and "your tarp kept the cache dry" are entertaining. A string of similar hauls would still get samey inside one run. | **No.** A run is about 12 minutes. Repeating Dyea to the Summit for three hours is the same four camps, not a campaign. |
+| Strategy fan | **No, not yet.** The cache, tarp, rifle, tram and Mountie math are a real strategy game. I would pay $14.99 for the four-act plan (Bennett boat, Yukon race, Dawson). I would not pay that for a single-pass prototype, however well it now telegraphs risk. | **Yes.** Forecasts and payoff callbacks make the decisions feel sharp. I wanted another run to place the rifle better. | **No.** I would play a few more seeds to beat my score. I would not get three hours from one trail with a handful of events. I need later acts, more events, and a reason to change my build between runs. |
+| Mobile player | **No.** The phone map, dock and Take / Leave work. $14.99 still buys a finished campaign I can sink a week into, not a prototype I finish over lunch. | **Yes, enough for a session.** Panning up the pass and seeing "Sheep Camp · 13 mi · 1,000 ft" feels like a journey. Scrolling a long provision list on a phone is the weak part. | **No.** One run is a commute, not an evening. Similar exploits would need new legs and new maps. |
+
+**Majority: no on $14.99, yes on fun, no on 3 hours.** The slice was iterated (map, stakes, art, sound) until it was as strong as this one-leg prototype can honestly be. It still should not ship to Bryan as a $14.99 product. The gap is content, not another UI pass: Lake Bennett, the river to Dawson, more events, and enough variety that a careful player can do three hours of *similar* exploits without repeating the same four camps.
+
+E2E after this pass (Playwright, unchanged rules): phone winter-lose end screen; desktop Mountie turn-back; careful win path "Welcome to Canada." day 31, 2,060 lb.

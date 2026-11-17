@@ -18,10 +18,13 @@ function toast(msg, tone = '') { while (toasts.children.length >= 3) toasts.firs
 
 function doAct(a) {
   const prevDay = s.day, before = s.camps.map((c, i) => G.campLb(s, i)), cash0 = s.cash, avs = s.stats.avalanches, thefts = s.stats.thefts, ruined = s.stats.ruined;
+  const fromPos = s.pos;
   const fromEl = document.getElementById('camp' + s.pos);
-  const toEl = a.type === 'haul' ? document.getElementById('camp' + (s.pos + 1)) : null;
+  const toEl = a.type === 'haul' ? document.getElementById('camp' + (s.pos + 1)) : a.type === 'up' ? document.getElementById('camp' + (s.pos + 1)) : a.type === 'back' ? document.getElementById('camp' + (s.pos - 1)) : null;
   const haulN = a.type === 'haul' ? (a.ids && a.ids.length ? a.ids.length : 6) : 0;
   G.act(s, a);
+  if (a.type === 'haul') walkAnim = { from: fromPos, mid: fromPos + 1, to: s.pos };
+  else if (s.pos !== fromPos) walkAnim = { from: fromPos, to: s.pos };
   pack = {}; toasts.innerHTML = ''; moreOpen = false;
   for (const f of s.flash) toast(f.msg, f.tone);
   if (s.day !== prevDay) { for (const f of s.flash) { const m = f.msg.match(/at ([A-Z][a-zA-Z ]+?)[:!.]/); const i = m ? G.CAMPS.findIndex(c => c.name === m[1].trim()) : -1; if (i >= 0) shakeCamp(i); } }
@@ -75,6 +78,293 @@ function pips(cur, max, cost = 0) {
   return `<span class="pips" aria-label="Stamina ${cur} of ${max}">${Array.from({ length: max }, (_, i) => `<i class="${i < cur - cost ? 'on' : i < cur ? 'cost' : 'off'}"></i>`).join('')}</span>`;
 }
 
+// ---------- Map, forecasts, provision copy ----------
+const MAP = [
+  { x: 70, y: 82.5, mi: 0, ft: 0, side: 'left' },
+  { x: 58, y: 71, mi: 8, ft: 500, side: 'right' },
+  { x: 45, y: 58, mi: 13, ft: 1000, side: 'left' },
+  { x: 58.5, y: 35.5, mi: 16, ft: 2500, side: 'left' },
+  { x: 71, y: 9.2, mi: 16.5, ft: 3525, side: 'left' },
+];
+const STAIRS = { x: 64, y: 22, mi: 16.3, ft: 3000 };
+let walkAnim = null, mapReady = false;
+
+function eatRate(st = s) { return st.charKey === 'partners' ? 6 : 3; }
+function fmtMi(n) { const v = Math.round(n * 10) / 10; return (v % 1 ? v.toFixed(1) : String(v)) + ' mi'; }
+function fmtFt(n) { return n <= 0 ? 'sea level' : Math.round(n).toLocaleString() + ' ft'; }
+function mapXY(pos) {
+  const i = Math.max(0, Math.min(4, pos));
+  const lo = Math.floor(i), hi = Math.ceil(i), t = i - lo;
+  if (lo === hi) return { ...MAP[lo] };
+  return { x: MAP[lo].x + (MAP[hi].x - MAP[lo].x) * t, y: MAP[lo].y + (MAP[hi].y - MAP[lo].y) * t, mi: MAP[lo].mi + (MAP[hi].mi - MAP[lo].mi) * t, ft: MAP[lo].ft + (MAP[hi].ft - MAP[lo].ft) * t };
+}
+function calloutName(pos) {
+  if (Number.isInteger(pos) || Math.abs(pos - Math.round(pos)) < 0.08) return G.CAMPS[Math.round(pos)].name;
+  if (pos > 3.12 && pos < 3.88) return 'The Golden Stairs';
+  return 'On the trail';
+}
+function setCallout(pos) {
+  const el = document.getElementById('mapcallout'); if (!el) return;
+  const c = mapXY(pos);
+  el.textContent = `${calloutName(pos)} · ${fmtMi(c.mi)} · ${fmtFt(c.ft)}`;
+}
+function setToken(pos, animate = true) {
+  const tok = document.getElementById('party'); if (!tok) return;
+  const c = mapXY(pos);
+  tok.style.transition = animate ? 'left 0.95s ease-in-out, top 0.95s ease-in-out' : 'none';
+  tok.style.left = c.x + '%'; tok.style.top = c.y + '%';
+  setCallout(pos);
+}
+function panMap(pos, animate = true) {
+  const view = document.getElementById('trailmap'), stage = document.getElementById('mapstage');
+  if (!view || !stage) return;
+  const { y } = mapXY(pos);
+  const vH = view.clientHeight, sH = stage.clientHeight;
+  if (!sH) { requestAnimationFrame(() => panMap(pos, animate)); return; }
+  let ty = 0.58 * vH - (y / 100) * sH;
+  const min = Math.min(0, vH - sH);
+  ty = Math.max(min, Math.min(0, ty));
+  stage.style.transition = animate && mapReady ? 'transform 1.05s cubic-bezier(.22,.7,.2,1)' : 'none';
+  stage.style.transform = `translateY(${ty}px)`;
+  mapReady = true;
+  setCallout(pos);
+}
+function reduceMotion() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+function playWalk() {
+  const tok = document.getElementById('party');
+  if (!walkAnim || !tok || reduceMotion()) { setToken(s.pos, false); panMap(s.pos, false); walkAnim = null; return 0; }
+  const w = walkAnim; walkAnim = null;
+  tok.classList.add('walking');
+  setToken(w.from, false); panMap(w.from, false);
+  const go = p => { setToken(p, true); panMap(p, true); };
+  const two = w.mid != null && w.mid !== w.to;
+  setTimeout(() => {
+    go(w.mid != null ? w.mid : w.to);
+    if (two) setTimeout(() => go(w.to), 950);
+    setTimeout(() => tok.classList.remove('walking'), two ? 2000 : 1050);
+  }, 40);
+  return two ? 2000 : 1100;
+}
+if (!window.__togMapResize) {
+  window.__togMapResize = () => { if (s && screen === 'game') panMap(s.pos, false); };
+  window.addEventListener('resize', window.__togMapResize);
+}
+
+function effectLine(k, w = 50) {
+  const days = Math.max(1, Math.round(w / eatRate()));
+  const feed = `Feeds you ${days} day${days === 1 ? '' : 's'}, ${w} lb, one trip`;
+  const lines = {
+    flour: feed + '.', beans: feed + '.', oats: feed + '.',
+    bacon: feed + '. Can go rancid if left uncovered.',
+    fruit: feed + '. Storms cannot ruin it.',
+    coffee: feed + '. In your pack, each haul costs 1 less stamina.',
+    tent: 'Where you sleep: +1 stamina a night. Mounties require it.',
+    stove: 'Where you sleep: +1 stamina a night. Mounties require it.',
+    tools: 'For the Bennett boat. Mounties require one.',
+    woolens: 'Where you sleep: storms cost no stamina.',
+    tarp: 'In a cache: storms and rot cannot touch food there.',
+    rifle: 'In a cache: halves theft.',
+    snowshoes: 'In your pack: +1 load on Long Hill and the Golden Stairs.',
+    medicine: 'Where you sleep: cures fever.',
+    tobacco: 'Trade goods. Sell for $40.',
+    hardware: 'Boat hardware for Lake Bennett.',
+    pans: 'Kitchen kit. Sell for $15.',
+  };
+  return lines[k] || (G.DEFS[k]?.text || '');
+}
+
+function countAfter(k, camp, ids) {
+  let n = s.camps[camp].cards.filter(id => s.cards[id].k === k).length;
+  if (s.pos < 4) {
+    const moved = ids.filter(id => s.cards[id].k === k).length;
+    if (camp === s.pos) n -= moved;
+    if (camp === s.pos + 1) n += moved;
+  }
+  return n;
+}
+function foodAfter(camp, ids) {
+  let n = G.foodLbAt(s, camp);
+  if (s.pos < 4) {
+    const moved = ids.reduce((a, id) => a + (G.DEFS[s.cards[id].k].kind === 'food' ? s.cards[id].w : 0), 0);
+    if (camp === s.pos) n -= moved;
+    if (camp === s.pos + 1) n += moved;
+  }
+  return n;
+}
+function gearAt(camp, ids, k) { return countAfter(k, camp, ids) > 0; }
+
+function forecastLines(ids, sleep, label) {
+  const out = [];
+  if (s.pos >= 4) return out;
+  const to = s.pos + 1, sleepI = sleep === 'dest' ? to : s.pos;
+  const sleepName = G.CAMPS[sleepI].name;
+  const food = foodAfter(sleepI, ids);
+  const need = eatRate();
+  const tent = gearAt(sleepI, ids, 'tent'), stove = gearAt(sleepI, ids, 'stove'), wool = gearAt(sleepI, ids, 'woolens');
+  const rec = 1 + (tent ? 1 : 0) + (stove ? 1 : 0) + (s.charKey === 'sourdough' ? 1 : 0);
+  if (food < need) out.push({ bad: true, t: `${label} you go to bed hungry at ${sleepName} (−2 stamina).` });
+  else {
+    const gear = (!tent && !stove) ? ` but without the tent and stove (+${rec} stamina)` : (!tent || !stove) ? ` but without the ${!tent ? 'tent' : 'stove'} (+${rec} stamina)` : `, tent and stove with you`;
+    out.push({ bad: !tent || !stove, t: `${label} you eat at ${sleepName}${gear}.` });
+  }
+  if (!tent || !stove) { /* already merged */ }
+  else if (food < need) out.push({ bad: true, t: `${label} you also sleep without ${!tent && !stove ? 'the tent and stove' : !tent ? 'the tent' : 'the stove'} at ${sleepName}.` });
+  if (s.weather[0] === 'storm' && !wool) out.push({ bad: true, t: `Storm tonight. ${label} no woolens at ${sleepName}: you will shiver (−1 stamina).` });
+  if (s.weather[0] === 'storm' && wool) out.push({ bad: false, t: `Storm tonight. ${label} your woolens keep you warm at ${sleepName}.` });
+  const cacheI = sleep === 'dest' ? s.pos : to;
+  const cacheName = G.CAMPS[cacheI].name;
+  const cacheLeft = (sleep === 'dest' ? s.camps[s.pos].cards.length - ids.length : ids.length);
+  if (cacheLeft > 0) {
+    const tarp = gearAt(cacheI, ids, 'tarp'), rifle = gearAt(cacheI, ids, 'rifle');
+    const stormSoon = s.weather[0] === 'storm' || s.weather[1] === 'storm';
+    const verb = sleep === 'dest' ? 'camp up' : 'return';
+    if (stormSoon && !tarp) out.push({ bad: true, t: `${s.weather[0] === 'storm' ? 'Storm tonight' : 'Storm tomorrow'}. If you ${verb}, the cache at ${cacheName} is uncovered — food could be ruined.` });
+    if (stormSoon && tarp) out.push({ bad: false, t: `Your tarp will cover the cache at ${cacheName} if you ${verb}.` });
+    if (!rifle && s.day >= 3 && s.guard !== cacheI) out.push({ bad: true, t: `Thieves may hit the cache at ${cacheName} if you ${verb} (no rifle there).` });
+  }
+  return out;
+}
+
+function mountieForecast(ids) {
+  let lb = G.campLb(s, 4), food = G.foodLbAt(s, 4);
+  const missing = ['tent', 'stove', 'tools'].filter(k => !G.campHas(s, 4, k) && !(s.pos === 3 && ids.some(id => s.cards[id].k === k)));
+  if (s.pos === 3) {
+    lb += ids.reduce((a, id) => a + s.cards[id].w, 0);
+    food += ids.reduce((a, id) => a + (G.DEFS[s.cards[id].k].kind === 'food' ? s.cards[id].w : 0), 0);
+  }
+  const shortLb = Math.max(0, G.GOAL_LB - lb), shortFood = Math.max(0, G.FOOD_REQ - food);
+  const bits = [`${lb.toLocaleString()} of ${G.GOAL_LB.toLocaleString()} lb`, `${food.toLocaleString()} of ${G.FOOD_REQ.toLocaleString()} lb food`];
+  if (missing.length) bits.push('still need ' + missing.map(k => G.DEFS[k].name.toLowerCase()).join(', '));
+  const bad = shortLb > 0 || shortFood > 0 || missing.length;
+  let t = 'Mounties at the Summit: ' + bits.join(', ') + '.';
+  if (bad) {
+    const parts = [];
+    if (shortLb) parts.push('short ' + shortLb.toLocaleString() + ' lb');
+    if (shortFood) parts.push('short ' + shortFood.toLocaleString() + ' lb of food');
+    if (missing.length) parts.push('need ' + missing.map(k => G.DEFS[k].name.toLowerCase()).join(', '));
+    t = 'Mountie check: ' + parts.join('; ') + '.';
+  } else t = 'Mountie check: the outfit at the Summit would pass.';
+  return { bad, t };
+}
+
+function hazardForecast() {
+  const out = [];
+  for (const i of [2, 3]) {
+    const av = G.avalancheRisk(s, i);
+    if (av > 0) out.push({ bad: true, t: `Snow is heavy at ${G.CAMPS[i].name}: avalanche risk ${Math.round(av * 100)}%. Keep loads moving.` });
+  }
+  const tools = [0, 1, 2, 3, 4].reduce((a, i) => a + s.camps[i].cards.filter(id => s.cards[id].k === 'tools').length, 0);
+  const hw = [0, 1, 2, 3, 4].reduce((a, i) => a + s.camps[i].cards.filter(id => s.cards[id].k === 'hardware').length, 0);
+  if (s.pos >= 2) out.push({ bad: tools < 1, t: `Bennett boat gear: ${tools} axe & whipsaw, ${hw} hardware.` });
+  return out;
+}
+
+function forecastHTML() {
+  if (s.pos >= 4) {
+    const ins = G.inspection(s);
+    const ok = !ins.shortLb && !ins.shortFood && !ins.missing.length;
+    return `<div class="forecast">${ok ? '<div>The Mounties would let you through.</div>' : `<div class="bad">${[ins.shortLb ? 'Short ' + ins.shortLb.toLocaleString() + ' lb' : '', ins.shortFood ? 'short ' + ins.shortFood.toLocaleString() + ' lb of food' : '', ins.missing.length ? 'missing ' + ins.missing.map(k => G.DEFS[k].name.toLowerCase()).join(', ') : ''].filter(Boolean).join('; ')}.</div>`}</div>`;
+  }
+  const chosen = packIds();
+  const idsO = chosen.length ? chosen : G.autoPack(s, 'origin');
+  const idsD = chosen.length ? chosen : G.autoPack(s, 'dest');
+  const same = chosen.length > 0 || idsO.join() === idsD.join();
+  let lines = [];
+  if (s.camps[s.pos].cards.length && s.pos < 4) {
+    if (same) {
+      lines.push(...forecastLines(idsO, 'origin', 'If you return,'));
+      lines.push(...forecastLines(idsD, 'dest', 'If you camp up,'));
+    } else {
+      lines.push(...forecastLines(idsO, 'origin', 'If you return,'));
+      lines.push(...forecastLines(idsD, 'dest', 'If you camp up,'));
+    }
+    // de-dupe identical texts
+    const seen = new Set(); lines = lines.filter(l => { if (seen.has(l.t)) return false; seen.add(l.t); return true; });
+    // prefer shortfalls, cap length
+    const bad = lines.filter(l => l.bad), ok = lines.filter(l => !l.bad);
+    lines = [...bad, ...ok].slice(0, tut(s).pack ? 5 : 2);
+    if (tut(s).pack || G.inspection(s).lb > 0 || s.pos >= 2) lines.push(mountieForecast(chosen.length ? chosen : idsO));
+    lines.push(...hazardForecast());
+  } else if (s.pos < 4) {
+    lines.push(mountieForecast([]));
+    lines.push(...hazardForecast());
+  }
+  if (!lines.length) return '';
+  return `<div class="forecast">${lines.map(l => `<div class="${l.bad ? 'bad' : ''}">${esc(l.t)}</div>`).join('')}</div>`;
+}
+
+function outfitForecast() {
+  const food = [0, 1, 2, 3, 4].reduce((a, i) => a + G.foodLbAt(s, i), 0);
+  const days = Math.floor(food / eatRate());
+  const tarps = s.camps[0].cards.filter(id => s.cards[id].k === 'tarp').length;
+  const lines = [];
+  lines.push({ bad: food < G.FOOD_REQ, t: `Food on the outfit: ${food.toLocaleString()} lb. You eat ${eatRate()} lb a night; the Mounties require ${G.FOOD_REQ.toLocaleString()} lb of food at the Summit. The pass closes in ${G.DEADLINE} days.` });
+  lines.push({ bad: false, t: 'They will also want 2,000 lb in all, plus a tent, a stove and tools.' });
+  lines.push({ bad: tarps < 2, t: tarps ? `You have ${tarps} tarp${tarps === 1 ? '' : 's'} to cover caches in a storm.` : 'No tarp: a storm can ruin any cache you leave uncovered.' });
+  if (s.sled) lines.push({ bad: false, t: 'The sled means fewer trips across the flats and the canyon.' });
+  else lines.push({ bad: false, t: 'A sled would mean fewer trips on the first two legs ($50).' });
+  return `<div class="forecast">${lines.map(l => `<div class="${l.bad ? 'bad' : ''}">${esc(l.t)}</div>`).join('')}</div>`;
+}
+
+function tokenSvg(small = false) {
+  const w = small ? 22 : 28, h = small ? 30 : 36;
+  return `<svg class="toksvg${small ? ' second' : ''}" viewBox="0 0 32 40" width="${w}" height="${h}" aria-hidden="true">
+    <ellipse cx="16" cy="37.5" rx="8" ry="2.2" fill="rgba(0,0,0,.45)"/>
+    <circle cx="16" cy="18" r="15.2" fill="#2a1a10" stroke="#d2a94f" stroke-width="1.8"/>
+    <circle cx="16.5" cy="11.2" r="3.3" fill="#e8d2ae"/>
+    <path d="M11.5 15.2 h9 a2 2 0 0 1 2 2 v6.2 a1.6 1.6 0 0 1-1.6 1.6 h-9.8 a1.6 1.6 0 0 1-1.6-1.6 V17.2 a2 2 0 0 1 2-2z" fill="#6e4a28" stroke="#3a2414" stroke-width=".7"/>
+    <path d="M13.2 25.2 L12.2 33.2" stroke="#c4a07a" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M19.2 25.2 L20.2 33.2" stroke="#c4a07a" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M12.8 8.6 h7.2 a1 1 0 0 1 .8 1.6 l-3.2 3.2 h-2.4 l-3.2-3.2 a1 1 0 0 1 .8-1.6z" fill="#3d2a18"/>
+  </svg>`;
+}
+function mapHTML(T) {
+  const spots = [];
+  for (let i = 0; i < 5; i++) {
+    const c = s.camps[i], p = MAP[i], tr = G.theftRisk(s, i), av = G.avalancheRisk(s, i);
+    const dest = s.pos < 4 && i === s.pos + 1;
+    const cls = `mapspot ${p.side} ${i === s.pos ? 'here' : ''} ${dest ? 'dest' : ''}`;
+    const n = c.cards.length;
+    const cacheIcons = i !== s.pos ? ['tarp', 'rifle'].filter(k => G.campHas(s, i, k)).map(k => `<span class="mic">${k}</span>`).join('') : '';
+    const pileHtml = (n || c.buried.length) ? `<span class="mappile">${n ? `<i class="crate"></i><b>${n}</b>` : ''}${c.buried.length ? `<span class="buried">${c.buried.length} buried</span>` : ''}</span>` : '';
+    spots.push(`<div class="${cls}" id="camp${i}" style="left:${p.x}%;top:${p.y}%">
+      <div class="mappin">
+        ${pileHtml}
+        <span class="mapname">${esc(G.CAMPS[i].name)}</span>
+        <span class="mapmeta">${fmtMi(p.mi)} · ${fmtFt(p.ft)}</span>
+        ${cacheIcons ? `<span class="mapgear">${cacheIcons}</span>` : ''}
+      </div>
+    </div>`);
+    if (T.cache && tr > 0) spots.push(`<div class="threat thief" style="left:${p.x + (p.side === 'left' ? 7 : -7)}%;top:${p.y - 3}%" title="Thieves may hit this cache"><span></span></div>`);
+    if (T.hazard && G.CAMPS[i].aval && (s.snowLoad[i] >= 4 || av > 0)) spots.push(`<div class="threat aval ${av >= 0.12 ? 'hot' : ''}" style="left:${p.x}%;top:${p.y - 6}%" title="Avalanche zone"><span></span></div>`);
+  }
+  if (s.weather[0] === 'storm' || s.weather[1] === 'storm') {
+    const approaching = s.weather[0] !== 'storm';
+    spots.push(`<div class="threat storm ${approaching ? 'soon' : 'now'}" style="left:42%;top:18%" title="${approaching ? 'Storm coming' : 'Storm tonight'}"></div>`);
+    if (s.pos >= 2) spots.push(`<div class="threat storm ${approaching ? 'soon' : 'now'}" style="left:68%;top:28%"></div>`);
+  }
+  if (s.event && !s.over) spots.push(`<div class="npc event" style="left:${MAP[s.pos].x}%;top:${MAP[s.pos].y - 8}%" title="${esc(s.event.title)}"></div>`);
+  if (s.seen.arrive1 || s.packers) spots.push(`<div class="npc packers" style="left:${MAP[1].x + 8}%;top:${MAP[1].y - 2}%" title="Tlingit packers"></div>`);
+  if (s.seen.arrive3) spots.push(`<div class="npc tram" style="left:${MAP[3].x + 7}%;top:${MAP[3].y}%" title="Aerial tramway"></div>`);
+  spots.push(`<div class="npc mountie" style="left:${MAP[4].x - 8}%;top:${MAP[4].y}%" title="North-West Mounted Police"></div>`);
+  const here = mapXY(walkAnim ? walkAnim.from : s.pos);
+  const partners = s.charKey === 'partners';
+  return `<div class="trailmap paper" id="trailmap">
+    <div class="mapstage" id="mapstage">
+      <img src="assets/img/trail-map.webp" alt="The Chilkoot trail, from Dyea at the water to the Summit">
+      <div class="maplabel stairs" style="left:${STAIRS.x}%;top:${STAIRS.y}%">The Golden Stairs<span>${fmtMi(STAIRS.mi)} · ${fmtFt(STAIRS.ft)}</span></div>
+      ${spots.join('')}
+      <div class="token ${partners ? 'pair' : ''}" id="party" style="left:${here.x}%;top:${here.y}%" aria-label="Your party">
+        <span class="tokbob">${tokenSvg()}${partners ? tokenSvg(true) : ''}</span>
+      </div>
+    </div>
+    <div class="mapvig"></div>
+    <div class="mapcallout" id="mapcallout">${esc(G.CAMPS[s.pos].name)} · ${fmtMi(MAP[s.pos].mi)} · ${fmtFt(MAP[s.pos].ft)}</div>
+  </div>`;
+}
+
+
+
 // ---------- Title / character select ----------
 function title() {
   screen = 'title'; document.body.classList.remove('ingame'); modal.classList.add('hidden');
@@ -112,7 +402,7 @@ function selectChar() {
     <p class="sub" style="color:#cbb896">${runs ? `Runs: ${runs} · Best score: ${best ? best.score : '-'}` : ''}</p>
   </div>`;
   app.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { A.unlock(); A.sfx('place', 0.8); start(b.dataset.c); });
-  $('#cont') && ($('#cont').onclick = () => { A.unlock(); A.setBed('game'); s = saved; screen = 'game'; render(); if (s.event) showEvent(); });
+  $('#cont') && ($('#cont').onclick = () => { A.unlock(); A.setBed('game'); s = saved; screen = 'game'; mapReady = false; walkAnim = null; render(); if (s.event) showEvent(); });
   $('#backTitle').onclick = () => title();
 }
 function howTo() {
@@ -125,7 +415,7 @@ function howTo() {
 function start(charKey) {
   const q = new URLSearchParams(location.search).get('seed');
   s = G.newGame(q ? +q : Math.floor(Math.random() * 1e9), charKey);
-  screen = 'game'; pack = {}; packOpen = null; moreOpen = false; save();
+  screen = 'game'; pack = {}; packOpen = null; moreOpen = false; walkAnim = null; mapReady = false; save();
   A.setBed('game'); FX.setSnow(0.4, 0.3); A.windLevel(0.25); render(); outfitter();
 }
 
@@ -145,6 +435,7 @@ function outfitter() {
     const bought = /bought/i.test(o.label);
     return `<button data-k="${o.key}" ${o.ok ? '' : 'disabled'}><b>${esc(bought ? m.name + ' bought' : m.name)}</b><em>${esc(bought ? '' : m.price)}</em><span>${esc(m.blurb)}</span></button>`;
   }).join('')}</div>
+  ${outfitForecast()}
   <div class="opts"><button class="primary" id="go">Head up the trail</button></div>
   <p class="sub cashline">$${s.cash} in your pocket.</p>`;
   sheet.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { G.act(s, { type: 'shop', key: b.dataset.k }); A.sfx('coins', 0.5); save(); render(); outfitter(); });
@@ -220,22 +511,7 @@ function render() {
    <div class="days" title="Days on the trail"><i style="width:${Math.min(100, (s.day / G.DEADLINE) * 100)}%"></i></div>
   </div>`;
 
-  html += '<div class="gamegrid"><div class="col-l"><div class="trail">';
-  for (let i = 4; i >= 0; i--) {
-    const c = s.camps[i], tr = G.theftRisk(s, i), av = G.avalancheRisk(s, i);
-    const b = [];
-    if (i === s.pos) b.push('<span class="badge safe">You: guarded</span>');
-    else if (T.cache && (s.guard === i || (i === 1 && s.seen.protected))) b.push('<span class="badge safe">Watched</span>');
-    else if (T.cache && c.cards.length && i !== s.pos) b.push(`<span class="badge ${tr ? 'risk' : 'safe'}">${tr ? (T.hazard ? 'At risk · theft ' + Math.round(tr * 100) + '%' : 'At risk') : 'Safe tonight'}${G.campHas(s, i, 'rifle') ? ' · rifle' : ''}</span>`);
-    if (T.hazard && G.CAMPS[i].aval) b.push(`<span class="badge snow">Snow <span class="meter">${Array.from({ length: 8 }, (_, j) => `<i class="${j < s.snowLoad[i] ? 'on' : ''}"></i>`).join('')}</span>${av ? ' avalanche ' + Math.round(av * 100) + '%' : ''}</span>`);
-    if (T.cache && c.cards.length && i !== s.pos) b.push(G.campHas(s, i, 'tarp') ? '<span class="badge safe">Tarp</span>' : '<span class="badge risk">Uncovered</span>');
-    if (c.buried.length) b.push(`<span class="badge risk">Buried</span>`);
-    const gear = ['tent', 'stove', 'tarp', 'rifle'].filter(k => G.campHas(s, i, k)).map(k => `<img class="gi" src="assets/cards/${k}.webp" alt="${k}" title="${G.DEFS[k].name}">`).join('');
-    const dest = s.pos < 4 && i === s.pos + 1;
-    html += `<div class="camp paper ${i === s.pos ? 'here' : ''} ${dest ? 'dest' : ''}" id="camp${i}"><div class="row"><span class="name">${esc(G.CAMPS[i].name)}${i === s.pos ? '<span class="you">YOU</span>' : ''}</span><span class="lb">${gear}${pile(c.cards.length)}</span></div><div class="badges">${b.join('')}</div></div>`;
-    if (i > 0) html += `<div class="leg">▲ ${esc(G.LEGS[i - 1].name)}</div>`;
-  }
-  html += '</div></div><div class="col-r">';
+  html += `<div class="gamegrid"><div class="col-l">${mapHTML(T)}</div><div class="col-r">`;
 
   html += `<div class="panel paper">${coach(T)}`;
   if (s.pos < 4) {
@@ -247,26 +523,30 @@ function render() {
       const preview = effIds.slice(0, 5);
       html += `<div class="haulstat">At ${esc(G.CAMPS[s.pos].name)} → ${esc(to)}
         <span class="trips">About ${trips} trip${trips === 1 ? '' : 's'} to empty this camp</span></div>`;
-      html += `<div class="todayfan" aria-hidden="true">${preview.map((id, i) => {
+      if (!packingOn()) html += `<div class="todayfan" aria-hidden="true">${preview.map((id, i) => {
         const k = s.cards[id].k, r = (i - (preview.length - 1) / 2) * 9;
         return `<div class="tc" style="background-image:url(assets/cards/${ART[k]}.webp);--r:${r}deg;--y:${Math.abs(r) * 0.4}px"></div>`;
       }).join('')}</div>`;
+      html += forecastHTML();
       if (packingOn()) {
         const types = {}; for (const id of here.cards) { const k = s.cards[id].k; (types[k] ||= []).push(id); }
-        html += '<div class="cards compact">' + Object.entries(types).map(([k, arr]) => {
-          const d = G.DEFS[k], pn = pack[k] || 0;
-          return `<div class="ctype compact ${pn ? 'packed' : ''}" data-k="${k}"><span class="art" style="background-image:url(assets/cards/${ART[k]}.webp)"></span><div class="t"><span>${esc(d.name)}</span><span class="sub">×${arr.length}</span></div>${d.use ? `<button class="small burn" data-u="${k}">Use</button>` : ''}<div class="ctl"><button class="small" data-m="${k}" ${pn ? '' : 'disabled'}>−</button><span class="n">${pn}</span><button class="small" data-p="${k}" ${pn < arr.length && ids.length < cap ? '' : 'disabled'}>+</button></div></div>`;
+        const leaveLbl = 'Leave';
+        html += `<div class="provhead"><span>Today's load: ${ids.length} of ${cap} · to ${esc(to)}</span><span class="packbar"><button class="small" id="auto">Auto-pack</button><button class="small" id="clear" ${ids.length ? '' : 'disabled'}>Clear</button></span></div>`;
+        html += '<div class="cards chunky">' + Object.entries(types).map(([k, arr]) => {
+          const d = G.DEFS[k], pn = pack[k] || 0, w = s.cards[arr[0]].w;
+          return `<div class="ctype chunky ${pn ? 'packed' : ''}" data-k="${k}"><span class="art" style="background-image:url(assets/cards/${ART[k]}.webp)"></span><div class="t"><span>${esc(d.name)}</span><span class="sub">×${arr.length}</span></div><div class="d">${esc(effectLine(k, w))}</div>${pn ? `<div class="d taken">Taking ${pn} · ${pn * w} lb up the trail</div>` : `<div class="d">Left at ${esc(G.CAMPS[s.pos].name)} — a cache if you camp up the trail.</div>`}${d.use ? `<button class="small burn" data-u="${k}">Use</button>` : ''}<div class="ctl"><button data-m="${k}" ${pn ? '' : 'disabled'}>${leaveLbl}</button><span class="n">${pn}</span><button data-p="${k}" ${pn < arr.length && ids.length < cap ? '' : 'disabled'}>Take</button></div></div>`;
         }).join('') + '</div>';
-        html += `<div class="packbar"><button class="small" id="auto">Auto-pack</button><button class="small" id="clear" ${ids.length ? '' : 'disabled'}>Clear</button></div>`;
       }
       // ghost preview on next camp is injected after as a data attr; also a line here
       bar = { canHaul: s.stamina >= cost && cap > 0, empties: (ids.length ? ids : G.autoPack(s, 'origin')).length === here.cards.length, frm: esc(G.CAMPS[s.pos].name), to: esc(to), n, cost };
     } else {
       html += `<div class="haulstat">At ${esc(G.CAMPS[s.pos].name)}.<br>Nothing left to carry here.</div>`;
+      html += forecastHTML();
     }
   } else {
     const ok = !ins.shortLb && !ins.shortFood && !ins.missing.length;
     html += `<div class="haulstat">At the Summit.</div><div>${ok ? '<b style="color:var(--good)">The Mounties would let you through.</b>' : `<b style="color:var(--bad)">Not yet.</b> ${ins.behind ? 'Goods are still down the trail.' : 'The outfit is short.'}`}</div>`;
+    html += forecastHTML();
   }
 
   const L = G.legal(s), has = t => L.find(a => a.type === t);
@@ -285,8 +565,7 @@ function render() {
   more.push(`<a href="#" id="abandon">Abandon run</a>`);
   html += `<div class="moresheet ${moreOpen ? '' : 'hidden'}" id="moresheet">${more.join('')}${howTo()}</div></div>`;
 
-  if (bar && bar.canHaul) html += `<div class="dockhint">Today's load goes to ${bar.to}</div>
-    <div class="dock"><button class="primary" id="haulO" ${!bar.empties ? '' : 'disabled'}>Haul and return</button>
+  if (bar && bar.canHaul) html += `<div class="dock"><button class="primary" id="haulO" ${!bar.empties ? '' : 'disabled'}>Haul and return</button>
     <button class="primary" id="haulD">Haul and camp</button>
     <button id="moreBtn">More</button></div>`;
   else if (s.pos === 4 && !s.over) html += `<div class="dock solo"><button class="primary" id="mounties2">Face the Mounties</button><button id="moreBtn">More</button></div>`;
@@ -298,13 +577,13 @@ function render() {
   html += `</div></div>`;
   app.innerHTML = html;
 
-  // ghost +N on destination
+  // ghost +N on destination camp pin
   if (bar && bar.n) {
     const dest = document.getElementById('camp' + (s.pos + 1));
     if (dest) {
-      const lb = dest.querySelector('.lb') || dest;
-      const g = document.createElement('span'); g.className = 'ghost'; g.textContent = '+' + bar.n + ' loads';
-      lb.appendChild(g);
+      const pin = dest.querySelector('.mappin') || dest;
+      const g = document.createElement('span'); g.className = 'ghost'; g.textContent = '+' + bar.n;
+      pin.appendChild(g);
     }
   }
 
@@ -321,7 +600,7 @@ function render() {
     const m = document.getElementById('moresheet');
     if (m) m.classList.toggle('hidden', !moreOpen);
   });
-  on('togglePack', () => { packOpen = !packingOn(); A.sfx('place', 0.4); moreOpen = true; render(); });
+  on('togglePack', () => { packOpen = !packingOn(); A.sfx('place', 0.4); moreOpen = true; render(); requestAnimationFrame(() => document.querySelector('.provhead, .cards.chunky')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); });
   on('showLog', () => {
     moreOpen = true; A.sfx('flip', 0.3);
     const m = document.getElementById('moresheet'); if (m) m.classList.remove('hidden');
@@ -341,6 +620,7 @@ function render() {
   on('mounties', () => doAct({ type: 'mounties' }));
   on('abandon', e => { e.preventDefault(); if (confirm('Abandon this run?')) { store.set('tog_run', null); s = null; selectChar(); } });
   for (const i of shakeQ) { const el = document.getElementById('camp' + i); if (el) { el.classList.add('shake'); } } shakeQ = [];
+  playWalk();
   if (s.event && !s.over) showEvent();
 }
 

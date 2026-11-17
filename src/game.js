@@ -272,20 +272,26 @@ function endDay(s, rested = false) {
   const w = s.weather[0];
   // guard pay
   if (s.guard !== null && s.guard !== s.pos) { if (s.cash >= 5) spend(s, 5); else { s.guard = null; log(s, 'You can\'t pay the watchman. He walks off.'); } }
-  // storm
+  // storm (same rolls; copy calls back to the player's tarp / woolens choice)
   if (w === 'storm') {
     if (!campHas(s, s.pos, 'woolens')) { s.stamina -= 1; flash(s, 'A storm howls all night. Without woolens you shiver (−1 stamina).', 'bad'); }
+    else flash(s, 'Your woolens kept you warm through the storm.', 'good');
+    let tarpSaved = false, passed = [];
     s.camps.forEach((c, i) => {
+      if (i !== s.pos && c.cards.length && campHas(s, i, 'tarp') && c.cards.some(id => def(s, id).kind === 'food')) tarpSaved = true;
       if (!stormExposed(s, i)) return;
       const f = c.cards.filter(id => def(s, id).kind === 'food' && !def(s, id).hardy);
-      if (f.length && rnd(s) < 0.5) { const id = pick(s, f); const nm = def(s, id).name; s.stats.ruined += s.cards[id].w; removeCard(s, id); flash(s, `Storm soaks an uncovered cache at ${CAMPS[i].name}: ${nm} ruined.`, 'bad'); }
+      if (f.length && rnd(s) < 0.5) { const id = pick(s, f); const nm = def(s, id).name; s.stats.ruined += s.cards[id].w; removeCard(s, id); flash(s, `No tarp: the storm ruined ${nm} at ${CAMPS[i].name}.`, 'bad'); }
+      else if (f.length) passed.push(CAMPS[i].name);
     });
+    if (tarpSaved) flash(s, 'Your tarp kept the cache dry in the storm.', 'good');
+    else if (passed.length) flash(s, `No tarp on the cache at ${passed[0]}. The storm passed over it this time.`, 'bad');
   }
   // rancid bacon in uncovered unguarded caches on clear days
   if (w === 'clear') s.camps.forEach((c, i) => {
     if (i === s.pos || campHas(s, i, 'tarp')) return;
     const b = c.cards.filter(id => DEFS[s.cards[id].k].rancid);
-    if (b.length && rnd(s) < 0.10) { const id = b[0]; s.stats.ruined += s.cards[id].w; removeCard(s, id); flash(s, `Bacon left uncovered at ${CAMPS[i].name} turns rancid.`, 'bad'); }
+    if (b.length && rnd(s) < 0.10) { const id = b[0]; s.stats.ruined += s.cards[id].w; removeCard(s, id); flash(s, `No tarp: bacon left at ${CAMPS[i].name} turns rancid.`, 'bad'); }
   });
   // theft
   s.camps.forEach((c, i) => {

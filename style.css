@@ -238,3 +238,86 @@ body.ingame::before{background:radial-gradient(ellipse at 50% 30%,rgba(18,15,12,
   .col-r .coach{font-size:17px;padding:10px 14px}
   body.ingame::before{background:radial-gradient(ellipse at 50% 30%,rgba(18,15,12,.08),rgba(18,15,12,.62) 80%)}
 }
+
+/* ---------- Chilkoot trail map ---------- */
+#app{padding:10px 12px calc(200px + env(safe-area-inset-bottom))}
+.trailmap{position:relative;height:46vh;min-height:240px;max-height:420px;overflow:hidden;margin-top:10px;border-radius:6px;background:#1a1410;box-shadow:0 0 0 1px rgba(60,40,20,.5),0 10px 28px rgba(0,0,0,.55)}
+.mapstage{position:absolute;left:0;top:0;width:100%;aspect-ratio:720/1280;transform:translateY(0);will-change:transform}
+.mapstage>img{display:block;width:100%;height:100%;object-fit:cover;user-select:none;pointer-events:none}
+.mapvig{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(10,8,6,.2),transparent 18%,transparent 78%,rgba(10,8,6,.55));box-shadow:inset 0 0 0 1px rgba(234,223,198,.12)}
+.mapcallout{position:absolute;left:8px;right:8px;bottom:8px;z-index:6;text-align:center;font:13px FellSC,serif;letter-spacing:.04em;color:#f3e7cc;background:rgba(18,12,8,.62);border:1px solid rgba(210,169,79,.4);border-radius:3px;padding:4px 8px;text-shadow:0 1px 3px #000;pointer-events:none}
+.mapspot{position:absolute;z-index:4;width:0;height:0}
+.mappin{position:absolute;left:0;top:0;transform:translate(-50%,-112%);display:flex;flex-direction:column;align-items:center;gap:1px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.7));pointer-events:none}
+.mapspot.left .mappin{align-items:flex-end;transform:translate(-100%,-80%);padding-right:10px}
+.mapspot.right .mappin{align-items:flex-start;transform:translate(0%,-80%);padding-left:10px}
+.mapname{font:12.5px FellSC,serif;color:#f6ead2;letter-spacing:.03em;background:rgba(18,12,8,.72);border:1px solid rgba(210,169,79,.45);border-radius:2px;padding:1px 6px;white-space:nowrap}
+.mapmeta{font:10px Fell,serif;color:#d9c8a6;background:rgba(18,12,8,.55);padding:0 5px;border-radius:2px;white-space:nowrap}
+.mapspot.here .mapname{background:var(--blood);border-color:#4a1a0b;color:#fff6df}
+.mapspot.dest .mapname{box-shadow:0 0 0 1px var(--gold)}
+.mappile{display:block;margin-bottom:2px}
+.mappile .pile{width:auto}
+.mappile .buried{display:block;font:10px FellSC,serif;color:#ff9b84;text-align:center}
+.mapgear{display:flex;gap:0}
+.maplabel{position:absolute;z-index:3;transform:translate(-50%,-100%);font:11px FellSC,serif;color:#f0d79a;text-align:center;background:rgba(18,12,8,.6);border:1px solid rgba(210,169,79,.3);padding:2px 7px;border-radius:2px;white-space:nowrap;pointer-events:none}
+.maplabel span{display:block;font:10px Fell,serif;color:#cbb896;font-family:Fell,serif}
+.maplabel.stairs{letter-spacing:.05em}
+.token{position:absolute;z-index:8;width:0;height:0;filter:drop-shadow(0 3px 3px rgba(0,0,0,.65))}
+.tokbob{position:absolute;left:0;top:0;transform:translate(-50%,-100%);display:flex;gap:2px}
+.toksvg{display:block;overflow:visible;filter:drop-shadow(0 1px 0 #1a0e08)}
+.toksvg.second{margin-top:6px;opacity:.95}
+.mappile{display:flex;align-items:center;gap:3px;background:rgba(18,12,8,.72);border:1px solid rgba(210,169,79,.45);border-radius:2px;padding:1px 5px 1px 3px;color:#f3e7cc;font:11px FellSC,serif}
+.mappile .crate{width:9px;height:8px;background:linear-gradient(180deg,#d2b07a,#8a6233);box-shadow:0 0 0 1px #3a2410;border-radius:1px;display:block}
+.mappile b{font-weight:normal}
+.mic{font:9px FellSC,serif;color:#f0d79a;background:rgba(18,12,8,.7);border:1px solid rgba(210,169,79,.35);border-radius:2px;padding:0 4px;text-transform:uppercase;letter-spacing:.04em}
+.token.walking .tokbob{animation:tokstep .38s infinite}
+@keyframes tokstep{0%,100%{transform:translate(-50%,-100%)}50%{transform:translate(-50%,-118%)}}
+.threat{position:absolute;z-index:5;width:28px;height:22px;transform:translate(-50%,-100%);pointer-events:none}
+.threat.storm{width:44px;height:28px;background:radial-gradient(ellipse at 30% 60%,#6a7380 0 10px,transparent 11px),radial-gradient(ellipse at 58% 50%,#8a93a0 0 12px,transparent 13px),radial-gradient(ellipse at 80% 65%,#5a6370 0 9px,transparent 10px);opacity:.92;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));animation:cloudDrift 5s ease-in-out infinite alternate}
+.threat.storm.soon{opacity:.7;animation:cloudIn 2.8s ease-in infinite alternate}
+.threat.thief span{display:block;width:14px;height:16px;background:#1a1010;border:1px solid #8f2b1d;border-radius:3px 3px 2px 2px;position:relative;box-shadow:0 0 8px rgba(143,43,29,.5)}
+.threat.thief span::before{content:"";position:absolute;left:3px;top:2px;width:6px;height:4px;background:#8f2b1d;border-radius:2px}
+.threat.aval span{display:block;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #c9d4de;filter:drop-shadow(0 0 4px rgba(200,220,240,.6));opacity:.85}
+.threat.aval.hot span{border-bottom-color:#f3e7cc;animation:avalPulse 1.2s ease-in-out infinite}
+.npc{position:absolute;z-index:5;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px rgba(210,169,79,.7),0 0 10px rgba(210,169,79,.6);background:#d2a94f;pointer-events:none}
+.npc.event{background:#f0d79a;animation:npcPulse 1.4s ease-in-out infinite;width:12px;height:12px}
+.npc.mountie{background:#2f5536;box-shadow:0 0 0 2px rgba(210,169,79,.8)}
+.npc.packers{background:#8a6526}
+.npc.tram{background:#9fb6c8;box-shadow:0 0 0 2px rgba(210,169,79,.6)}
+@keyframes cloudDrift{from{transform:translate(-50%,-100%)}to{transform:translate(calc(-50% + 10px),-108%)}}
+@keyframes cloudIn{from{transform:translate(-70%,-90%);opacity:.35}to{transform:translate(-40%,-110%);opacity:.8}}
+@keyframes avalPulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+@keyframes npcPulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1}50%{transform:translate(-50%,-50%) scale(1.35);opacity:.75}}
+.mapspot.shake .mappin{animation:shake .45s}
+.mappin .ghost{font:11px FellSC,serif;color:#c6e6c4;background:rgba(47,85,54,.55);border:1px dashed rgba(198,230,196,.7);border-radius:2px;padding:0 5px;margin-bottom:2px}
+
+/* ---------- Provisioning stakes ---------- */
+.forecast{margin:8px 0 10px;padding:8px 10px;background:rgba(42,29,18,.06);border:1px solid rgba(42,29,18,.18);border-radius:4px;font-size:14px;display:flex;flex-direction:column;gap:5px}
+.forecast div{line-height:1.3}
+.forecast .bad{color:var(--blood);font-weight:normal}
+.sheet .forecast{margin-top:12px;background:rgba(42,29,18,.05)}
+.provhead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 6px;font-family:FellSC,serif;font-size:14.5px}
+.cards.chunky{grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:8px}
+.ctype.chunky{padding:8px 8px 8px 62px;min-height:112px;gap:4px}
+.ctype.chunky .d{display:block;font-size:12.5px;color:var(--muted);line-height:1.25}
+.ctype.chunky .d.taken{color:var(--pine)}
+.ctype.chunky .ctl{display:flex;align-items:center;gap:6px;margin-top:6px}
+.ctype.chunky .ctl button{flex:1;padding:7px 8px;font-size:15px;font-family:FellSC,serif}
+.ctype.chunky .n{min-width:1.2em;text-align:center;font-family:FellSC,serif;font-size:16px}
+
+@media (min-width:1000px){
+  .trailmap{height:58vh;min-height:420px;max-height:640px;margin-top:10px}
+  .mapname{font-size:13.5px}
+  .mapcallout{font-size:15px}
+  .col-l{position:sticky;top:12px}
+}
+@media (max-width:640px){
+  .trailmap{height:38vh;min-height:200px;max-height:320px}
+  .panel{margin-bottom:0}
+  .mapmeta{display:none}
+  .cards.chunky{grid-template-columns:1fr}
+  .ctype.chunky{min-height:0}
+  .ctype.chunky .ctl button{padding:8px 12px}
+}
+@media (prefers-reduced-motion: reduce){
+  .token.walking .tokbob,.threat.storm,.threat.aval.hot,.npc.event{animation:none}
+}
